@@ -2828,3 +2828,61 @@ input:focus {
     width: 60px;
   }
 }
+
+
+/* v1.10 keep homeland purchase CTA visible */
+.homeland-purchase-panel {
+  max-height: calc(100% - 36px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.purchase-action-sticky {
+  position: sticky;
+  bottom: -14px;
+  z-index: 8;
+  margin: 10px -14px -14px;
+  padding: 10px 14px 14px;
+  border-top: 1px solid rgba(199, 169, 31, .28);
+  background:
+    linear-gradient(180deg, rgba(33,10,9,.92), rgba(11,10,8,.99) 34%);
+  box-shadow: 0 -10px 20px rgba(0,0,0,.22);
+}
+
+.purchase-action-sticky .purchase-country-button {
+  margin-top: 0;
+}
+
+.purchase-action-sticky > small {
+  display: block;
+  margin-top: 7px;
+  color: #90958b;
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+@media (max-height: 760px) {
+  .homeland-purchase-panel {
+    top: 10px;
+    right: 10px;
+    max-height: calc(100% - 20px);
+  }
+
+  .homeland-strategy-summary small {
+    display: none;
+  }
+
+  .starting-money-picker {
+    padding: 7px;
+    margin-bottom: 8px;
+  }
+
+  .purchase-stat {
+    padding: 5px 0;
+  }
+
+  .purchase-city-list {
+    max-height: 82px;
+  }
+}
