@@ -573,6 +573,25 @@ export default function App() {
     ? productionQueue.filter((order) => order.countryId === selectedCity.code).length
     : 0;
 
+  const activeMoveSource = moveSourceCode
+    ? cityNodes.find((city) => city.code === moveSourceCode)
+    : undefined;
+  const activeMoveUnitIds =
+    Object.keys(moveManifest).length > 0
+      ? Object.keys(moveManifest).filter((unitId) => (moveManifest[unitId] ?? 0) > 0)
+      : [selectedUnit.id];
+  const activeMoveRanges = activeMoveUnitIds
+    .map((unitId) => unitDefinition(unitId))
+    .filter((unit): unit is UnitDefinition => Boolean(unit))
+    .map((unit) =>
+      movementRangeKm(
+        strategiesEnabled ? applyStrategy(unit, selectedStrategy) : unit
+      )
+    );
+  const activeMoveRangeKm =
+    activeMoveRanges.length > 0 ? Math.min(...activeMoveRanges) : 0;
+  const activeMoveRangeMapRadius = activeMoveRangeKm / 40.075;
+
   const mapViewWidth = WORLD_WIDTH / mapZoom;
   const mapViewHeight = WORLD_HEIGHT / mapZoom;
   const mapViewBox = [
@@ -2216,6 +2235,29 @@ export default function App() {
                       );
                     })}
 
+                    {activeMoveSource && activeMoveRangeMapRadius > 0 && (() => {
+                      const [sourceX, sourceY] = project([
+                        activeMoveSource.lon,
+                        activeMoveSource.lat,
+                      ]);
+                      return (
+                        <g className="movement-range-layer">
+                          <circle
+                            cx={sourceX}
+                            cy={sourceY}
+                            r={activeMoveRangeMapRadius}
+                            className="movement-range-circle"
+                          />
+                          <circle
+                            cx={sourceX}
+                            cy={sourceY}
+                            r="4"
+                            className="movement-range-origin"
+                          />
+                        </g>
+                      );
+                    })()}
+
                     {movementQueue.map((order) => {
                       const from = cityNodes.find(
                         (city) => city.code === order.fromCode
@@ -2279,6 +2321,11 @@ export default function App() {
                             (isSelectedCity ? "selected-city" : "")
                           }
                           key={city.code}
+                          style={
+                            cityOwner === currentPlayer
+                              ? { color: playerColor }
+                              : undefined
+                          }
                           transform={`translate(${x} ${y}) scale(${1 / mapZoom})`}
                           onClick={(event) => {
                             event.stopPropagation();
@@ -2654,6 +2701,20 @@ export default function App() {
                                 : ""}
                             </small>
                           </div>
+                          <input
+                            className="move-quantity-slider"
+                            type="range"
+                            min="0"
+                            max={available}
+                            value={selected}
+                            onChange={(event) =>
+                              setMoveDraft((current) => ({
+                                ...current,
+                                [unit.id]: Number(event.target.value),
+                              }))
+                            }
+                            disabled={unit.domain === "naval"}
+                          />
                           <button
                             onClick={() =>
                               adjustMoveDraft(
@@ -2664,6 +2725,18 @@ export default function App() {
                             disabled={selected <= 0}
                           >
                             −
+                          </button>
+                          <button
+                            className="move-all-button"
+                            onClick={() =>
+                              setMoveDraft((current) => ({
+                                ...current,
+                                [unit.id]: available,
+                              }))
+                            }
+                            disabled={unit.domain === "naval" || available <= 0}
+                          >
+                            ALL
                           </button>
                           <b className="move-draft-count">
                             {selected}
