@@ -1575,3 +1575,18 @@ button:disabled {
 .capacity-strip.instant-production span:nth-of-type(2) {
   text-align: right;
 }
+
+
+.city-window-drag-handle {
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.city-window-drag-handle:active {
+  cursor: grabbing;
+}
+
+.city-window-drag-handle button {
+  cursor: pointer;
+}
