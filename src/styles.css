@@ -2367,3 +2367,89 @@ input:focus {
     grid-template-columns: 1fr 80px;
   }
 }
+
+
+/* v1.7 homeland purchase economy */
+.starting-money-picker {
+  margin: 4px 0 12px;
+  padding: 10px;
+  border: 1px solid rgba(188, 166, 68, .24);
+  border-radius: 4px;
+  background: rgba(15, 14, 9, .72);
+}
+
+.starting-money-picker > span {
+  display: block;
+  margin-bottom: 7px;
+  color: #a9a58b;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.starting-money-picker > div {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+}
+
+.starting-money-picker button {
+  padding: 7px 5px;
+  border: 1px solid #4d4930;
+  border-radius: 3px;
+  background: #17170f;
+  color: #c6c4ae;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.starting-money-picker button:hover {
+  border-color: #998c2c;
+  color: #f1edc9;
+}
+
+.starting-money-picker button.active {
+  border-color: #d3b828;
+  background: #645d0b;
+  color: #fff5a8;
+  box-shadow: inset 0 0 0 1px rgba(255, 242, 128, .08);
+}
+
+.starting-money-picker small {
+  display: block;
+  margin-top: 8px;
+  color: #989887;
+  font-size: 9px;
+}
+
+.starting-money-picker small b {
+  color: #e4cf54;
+}
+
+.country-price-row b {
+  color: #e4c63f;
+}
+
+.purchase-country-button:disabled {
+  border-color: #5a322f;
+  background: #341513;
+  color: #9c6d68;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.homeland-country.supported {
+  pointer-events: all;
+}
+
+.homeland-country.unsupported {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.homeland-country.unsupported:hover {
+  fill: #765948;
+  fill-opacity: .10;
+  stroke: rgba(223, 214, 185, .55);
+}
