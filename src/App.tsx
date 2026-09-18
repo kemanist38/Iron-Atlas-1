@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { UNIT_DEFINITIONS, type UnitDefinition } from "./unitData";
 import { UNIT_ICON_BY_ID } from "./unitIcons";
 
-type Screen = "lobby" | "game";
+type Screen = "lobby" | "homeland" | "game";
 type Position = [number, number];
 
 type GeoGeometry = {
@@ -234,6 +234,57 @@ const INITIAL_CITY_OWNERS = Object.fromEntries(
 
 const CAPITAL_HOLD_TURNS_REQUIRED = 2;
 
+
+type HomelandOption = {
+  code: string;
+  name: string;
+  region: string;
+  description: string;
+  startingResources: Resources;
+};
+
+const HOMELAND_OPTIONS: HomelandOption[] = [
+  { code: "TUR", name: "Türkiye", region: "Avrupa / Orta Doğu", description: "Avrupa, Kafkasya ve Orta Doğu arasında dengeli başlangıç.", startingResources: { gold: 1500, steel: 900, oil: 720 } },
+  { code: "DEU", name: "Almanya", region: "Avrupa", description: "Yüksek asker basma kapasitesi ve merkezi Avrupa konumu.", startingResources: { gold: 1650, steel: 980, oil: 620 } },
+  { code: "FRA", name: "Fransa", region: "Avrupa", description: "Batı Avrupa ve Akdeniz'e erişimi olan dengeli anavatan.", startingResources: { gold: 1580, steel: 860, oil: 650 } },
+  { code: "GBR", name: "Birleşik Krallık", region: "Avrupa", description: "Ada savunması ve Atlantik erişimi güçlü başlangıç.", startingResources: { gold: 1700, steel: 820, oil: 700 } },
+  { code: "ITA", name: "İtalya", region: "Avrupa", description: "Akdeniz merkezli, kuzey-güney operasyonlarına uygun.", startingResources: { gold: 1480, steel: 820, oil: 640 } },
+  { code: "ESP", name: "İspanya", region: "Avrupa", description: "Atlantik ve Akdeniz'e çift yönlü çıkış.", startingResources: { gold: 1450, steel: 780, oil: 680 } },
+  { code: "POL", name: "Polonya", region: "Avrupa", description: "Doğu ve Batı Avrupa arasında kara savaşı odaklı konum.", startingResources: { gold: 1400, steel: 900, oil: 560 } },
+  { code: "USA", name: "ABD", region: "Kuzey Amerika", description: "Geniş şehir ağı, yüksek ekonomi ve iki okyanusa erişim.", startingResources: { gold: 1900, steel: 1100, oil: 1000 } },
+  { code: "RUS", name: "Rusya", region: "Avrasya", description: "Çok geniş coğrafya, yüksek savunma derinliği ve kaynak tabanı.", startingResources: { gold: 1700, steel: 1200, oil: 1150 } },
+  { code: "CHN", name: "Çin", region: "Asya", description: "Yüksek şehir kapasitesi ve yoğun kara üretimi.", startingResources: { gold: 1750, steel: 1150, oil: 820 } },
+  { code: "JPN", name: "Japonya", region: "Asya / Pasifik", description: "Pasifik odaklı ada başlangıcı ve güçlü hava-deniz konumu.", startingResources: { gold: 1600, steel: 850, oil: 760 } },
+  { code: "IND", name: "Hindistan", region: "Güney Asya", description: "Hint Okyanusu ve Asya kara yollarına erişim.", startingResources: { gold: 1600, steel: 900, oil: 700 } },
+  { code: "BRA", name: "Brezilya", region: "Güney Amerika", description: "Geniş güvenli arka alan ve güçlü şehir ekonomisi.", startingResources: { gold: 1550, steel: 850, oil: 760 } },
+  { code: "AUS", name: "Avustralya", region: "Okyanusya", description: "İzole savunma, Pasifik ve Hint Okyanusu operasyonları.", startingResources: { gold: 1500, steel: 800, oil: 820 } },
+];
+
+const COUNTRY_NAMES = Object.fromEntries(
+  HOMELAND_OPTIONS.map((item) => [item.code, item.name])
+) as Record<string, string>;
+
+function capitalForCountry(countryCode: string) {
+  return cityNodes.find(
+    (city) => city.countryCode === countryCode && city.isCapital
+  );
+}
+
+function startingGarrisonFor(countryCode: string): Record<string, number> {
+  const cityCount = cityNodes.filter(
+    (city) => city.countryCode === countryCode
+  ).length;
+
+  return {
+    infantry: 900 + cityCount * 80,
+    light_tank: 24 + cityCount * 2,
+    heavy_tank: 12 + cityCount,
+    fighter: 10 + Math.floor(cityCount / 2),
+    attack_helicopter: 6,
+    battleship: ["GBR", "USA", "JPN", "AUS", "BRA", "FRA", "ITA", "ESP"].includes(countryCode) ? 3 : 1,
+  };
+}
+
 type RadarStack = {
   kind: "infantry" | "tank" | "air" | "naval";
   iconId: string;
@@ -392,6 +443,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("lobby");
   const [commander, setCommander] = useState("Atlas");
   const [roomName, setRoomName] = useState("Global War");
+  const [selectedHomeland, setSelectedHomeland] = useState("TUR");
   const [turn, setTurn] = useState(1);
   const [notice, setNotice] = useState("Komuta ağı çevrimiçi.");
   const [selectedUnitId, setSelectedUnitId] = useState("infantry");
@@ -504,6 +556,119 @@ export default function App() {
     mapViewWidth,
     mapViewHeight,
   ].join(" ");
+
+  function setupGameFromHomeland(countryCode: string) {
+    const playerName = commander.trim() || "Atlas";
+    const playerHome = HOMELAND_OPTIONS.find(
+      (item) => item.code === countryCode
+    ) ?? HOMELAND_OPTIONS[0];
+
+    const opponentCandidates = ["RUS", "FRA", "CHN", "USA", "DEU", "JPN"]
+      .filter((code) => code !== countryCode);
+    const doganHome = opponentCandidates[0];
+    const novaHome = opponentCandidates[1];
+
+    const nextCountryState: Record<string, CountryState> = {};
+    const knownCountryCodes = Array.from(
+      new Set(cityNodes.map((city) => city.countryCode))
+    );
+
+    knownCountryCodes.forEach((code) => {
+      nextCountryState[code] = {
+        owner: null,
+        troops: 5,
+        resource:
+          code === "RUS" || code === "USA"
+            ? "Petrol"
+            : code === "DEU" || code === "CHN"
+              ? "Çelik"
+              : "Altın",
+      };
+    });
+
+    nextCountryState[countryCode] = {
+      ...(nextCountryState[countryCode] ?? {
+        troops: 5,
+        resource: "Altın",
+      }),
+      owner: playerName,
+    };
+    nextCountryState[doganHome] = {
+      ...(nextCountryState[doganHome] ?? {
+        troops: 5,
+        resource: "Petrol",
+      }),
+      owner: "Dogan",
+    };
+    nextCountryState[novaHome] = {
+      ...(nextCountryState[novaHome] ?? {
+        troops: 5,
+        resource: "Altın",
+      }),
+      owner: "Nova",
+    };
+
+    const nextCityOwners = Object.fromEntries(
+      cityNodes.map((city) => {
+        if (city.countryCode === countryCode) {
+          return [city.code, playerName];
+        }
+        if (city.countryCode === doganHome) {
+          return [city.code, "Dogan"];
+        }
+        if (city.countryCode === novaHome) {
+          return [city.code, "Nova"];
+        }
+        return [city.code, null];
+      })
+    ) as Record<string, string | null>;
+
+    const nextGarrisons: Garrison = {};
+    const playerCapital = capitalForCountry(countryCode);
+    const doganCapital = capitalForCountry(doganHome);
+    const novaCapital = capitalForCountry(novaHome);
+
+    if (playerCapital) {
+      nextGarrisons[playerCapital.code] =
+        startingGarrisonFor(countryCode);
+    }
+    if (doganCapital) {
+      nextGarrisons[doganCapital.code] =
+        startingGarrisonFor(doganHome);
+    }
+    if (novaCapital) {
+      nextGarrisons[novaCapital.code] =
+        startingGarrisonFor(novaHome);
+    }
+
+    setResources(playerHome.startingResources);
+    setCountryState(nextCountryState);
+    setCityOwners(nextCityOwners);
+    setGarrisons(nextGarrisons);
+    setProductionQueue([]);
+    setMovementQueue([]);
+    setCapitalHoldTurns({});
+    setTurn(1);
+    setOrderSequence(1);
+    setMoveSourceCode(null);
+    setSelectedId(countryCode);
+
+    if (playerCapital) {
+      setSelectedCityId(playerCapital.code);
+      const [capitalX, capitalY] = project([
+        playerCapital.lon,
+        playerCapital.lat,
+      ]);
+      setMapCenter({ x: capitalX, y: capitalY });
+      setMapZoom(1.75);
+    }
+
+    setNotice(
+      playerHome.name +
+        " anavatan olarak seçildi. Başkent ve başlangıç ordusu hazır."
+    );
+    setScreen("game");
+  }
 
   function changeMapZoom(nextZoom: number) {
     const zoom = Math.min(2.5, Math.max(1, nextZoom));
@@ -1012,6 +1177,160 @@ export default function App() {
     setTurn(nextTurn);
   }
 
+  if (screen === "homeland") {
+    const homeland = HOMELAND_OPTIONS.find(
+      (item) => item.code === selectedHomeland
+    ) ?? HOMELAND_OPTIONS[0];
+    const homelandCities = cityNodes.filter(
+      (city) => city.countryCode === homeland.code
+    );
+    const homelandCapital = homelandCities.find(
+      (city) => city.isCapital
+    );
+    const homelandCapacity = homelandCities.reduce(
+      (sum, city) => sum + city.recruitCapacity,
+      0
+    );
+    const homelandIncome = homelandCities.reduce(
+      (sum, city) => sum + city.income,
+      0
+    );
+
+    return (
+      <div className="app homeland-screen">
+        <header className="brandbar">
+          <div>
+            <span className="eyebrow">GLOBAL COMMAND NETWORK</span>
+            <h1>IRON ATLAS</h1>
+          </div>
+          <button
+            className="ghost homeland-back"
+            onClick={() => setScreen("lobby")}
+          >
+            ← LOBİ
+          </button>
+        </header>
+
+        <main className="homeland-shell">
+          <section className="homeland-title">
+            <span className="eyebrow">NEW CAMPAIGN</span>
+            <h2>Anavatanını Seç</h2>
+            <p>
+              Başlangıç şehirlerin, başkentin, asker basma kapasiten ve
+              ilk ordun seçtiğin ülkeye göre kurulacak.
+            </p>
+          </section>
+
+          <section className="homeland-layout">
+            <div className="homeland-grid">
+              {HOMELAND_OPTIONS.map((country) => {
+                const cities = cityNodes.filter(
+                  (city) => city.countryCode === country.code
+                );
+                const capacity = cities.reduce(
+                  (sum, city) => sum + city.recruitCapacity,
+                  0
+                );
+                const capital = cities.find((city) => city.isCapital);
+
+                return (
+                  <button
+                    key={country.code}
+                    className={
+                      "homeland-card " +
+                      (selectedHomeland === country.code
+                        ? "selected"
+                        : "")
+                    }
+                    onClick={() => setSelectedHomeland(country.code)}
+                  >
+                    <div className="homeland-card-top">
+                      <span className="country-code">{country.code}</span>
+                      <span className="country-region">{country.region}</span>
+                    </div>
+                    <strong>{country.name}</strong>
+                    <small>★ {capital?.name ?? "Başkent"}</small>
+                    <div className="homeland-mini-stats">
+                      <span>{cities.length} şehir</span>
+                      <span>{capacity} kapasite</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <aside className="homeland-detail card">
+              <span className="eyebrow">SELECTED HOMELAND</span>
+              <h3>{homeland.name}</h3>
+              <p>{homeland.description}</p>
+
+              <div className="homeland-detail-grid">
+                <div>
+                  <span>Başkent</span>
+                  <b>{homelandCapital?.name ?? "—"}</b>
+                </div>
+                <div>
+                  <span>Şehir</span>
+                  <b>{homelandCities.length}</b>
+                </div>
+                <div>
+                  <span>Asker basma kapasitesi</span>
+                  <b>{homelandCapacity}</b>
+                </div>
+                <div>
+                  <span>Şehir ekonomisi</span>
+                  <b>{homelandIncome.toLocaleString("tr-TR")}</b>
+                </div>
+              </div>
+
+              <div className="starting-resources">
+                <span className="eyebrow">STARTING RESOURCES</span>
+                <div>
+                  <span>Altın</span>
+                  <b>{homeland.startingResources.gold}</b>
+                </div>
+                <div>
+                  <span>Çelik</span>
+                  <b>{homeland.startingResources.steel}</b>
+                </div>
+                <div>
+                  <span>Petrol</span>
+                  <b>{homeland.startingResources.oil}</b>
+                </div>
+              </div>
+
+              <div className="starting-force-preview">
+                <span className="eyebrow">CAPITAL GARRISON</span>
+                {Object.entries(
+                  startingGarrisonFor(homeland.code)
+                ).map(([unitId, quantity]) => {
+                  const unit = UNIT_DEFINITIONS.find(
+                    (item) => item.id === unitId
+                  );
+                  return (
+                    <div key={unitId}>
+                      <span>{unit?.name ?? unitId}</span>
+                      <b>{quantity}</b>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                className="primary homeland-confirm"
+                onClick={() =>
+                  setupGameFromHomeland(selectedHomeland)
+                }
+              >
+                {homeland.name.toUpperCase()} İLE BAŞLA
+              </button>
+            </aside>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
   if (screen === "lobby") {
     return (
       <div className="app">
@@ -1048,7 +1367,7 @@ export default function App() {
               </label>
             </div>
 
-            <button className="primary" onClick={() => setScreen("game")}>
+            <button className="primary" onClick={() => setScreen("homeland")}>
               YENİ OYUN OLUŞTUR
             </button>
           </section>
@@ -1077,7 +1396,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     setRoomName(name);
-                    setScreen("game");
+                    setScreen("homeland");
                   }}
                 >
                   KATIL
