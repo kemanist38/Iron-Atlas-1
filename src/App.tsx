@@ -45,6 +45,7 @@ type ProductionOrder = {
 
 type MovementOrder = {
   id: number;
+  kind: "move" | "attack";
   fromCode: string;
   fromCity: string;
   toCode: string;
@@ -193,6 +194,18 @@ function getProductionCost(unit: UnitDefinition, quantity: number) {
   };
 }
 
+function unitDefinition(unitId: string) {
+  return UNIT_DEFINITIONS.find((unit) => unit.id === unitId);
+}
+
+function totalDefensePower(units: Record<string, number>) {
+  return Object.entries(units).reduce((sum, [unitId, quantity]) => {
+    const unit = unitDefinition(unitId);
+    if (!unit || quantity <= 0) return sum;
+    return sum + quantity * unit.stats.defense * (1 + unit.stats.hp * 0.03);
+  }, 0);
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>("lobby");
   const [commander, setCommander] = useState("Atlas");
@@ -261,19 +274,6 @@ export default function App() {
   const productionCost = getProductionCost(selectedUnit, productionQty);
   const selectedGarrison = garrisons[selectedId] ?? {};
   const selectedUnitCount = selectedGarrison[selectedUnit.id] ?? 0;
-
-  function claimSelected() {
-    setCountryState((current) => ({
-      ...current,
-      [selectedId]: {
-        ...selectedState,
-        owner: currentPlayer,
-        troops: selectedState.owner === currentPlayer ? selectedState.troops + 1 : 5,
-      },
-    }));
-
-    setNotice(`${selectedName} bölgesi ${currentPlayer} kontrolüne geçti.`);
-  }
 
   function queueProduction() {
     if (!selectedCity) {
@@ -369,12 +369,8 @@ export default function App() {
     }
 
     const targetState = countryState[city.code];
-    if (targetState?.owner !== currentPlayer) {
-      setNotice(
-        "Bu sürümde hareket emirleri yalnızca dost şehirlere verilebilir. Saldırı çözümleme motoru sıradaki aşamada eklenecek."
-      );
-      return;
-    }
+    const orderKind: "move" | "attack" =
+      targetState?.owner === currentPlayer ? "move" : "attack";
 
     const km = distanceKm(source, city);
     const maxKm = movementRangeKm(selectedUnit);
@@ -403,6 +399,7 @@ export default function App() {
       ...current,
       {
         id: orderSequence,
+        kind: orderKind,
         fromCode: source.code,
         fromCity: source.name,
         toCode: city.code,
@@ -418,7 +415,9 @@ export default function App() {
     setMoveSourceCode(null);
     setSelectedId(city.code);
     setNotice(
-      `${source.name} → ${city.name}: ${movementQty} × ${selectedUnit.name} hareket emri kuyruğa eklendi.`
+      orderKind === "attack"
+        ? source.name + " → " + city.name + ": " + movementQty + " × " + selectedUnit.name + " SALDIRI emri kuyruğa eklendi."
+        : source.name + " → " + city.name + ": " + movementQty + " × " + selectedUnit.name + " hareket emri kuyruğa eklendi."
     );
   }
 
@@ -427,49 +426,94 @@ export default function App() {
     const completed = productionQueue.filter((order) => order.readyTurn <= nextTurn);
     const pending = productionQueue.filter((order) => order.readyTurn > nextTurn);
 
-    const movedTexts: string[] = [];
-
-    setGarrisons((current) => {
-      const next: Garrison = {};
-
-      Object.entries(current).forEach(([code, units]) => {
-        next[code] = { ...units };
-      });
-
-      movementQueue.forEach((order) => {
-        const available = next[order.fromCode]?.[order.unitId] ?? 0;
-        const moved = Math.min(available, order.quantity);
-
-        if (moved <= 0) return;
-
-        next[order.fromCode] = {
-          ...(next[order.fromCode] ?? {}),
-          [order.unitId]: available - moved,
-        };
-
-        next[order.toCode] = {
-          ...(next[order.toCode] ?? {}),
-          [order.unitId]: (next[order.toCode]?.[order.unitId] ?? 0) + moved,
-        };
-
-        movedTexts.push(
-          `${order.fromCity} → ${order.toCity}: ${moved} ${order.unitName}`
-        );
-      });
-
-      completed.forEach((order) => {
-        next[order.countryId] = {
-          ...(next[order.countryId] ?? {}),
-          [order.unitId]:
-            (next[order.countryId]?.[order.unitId] ?? 0) + order.quantity,
-        };
-      });
-
-      return next;
+    const nextGarrisons: Garrison = {};
+    Object.entries(garrisons).forEach(([code, units]) => {
+      nextGarrisons[code] = { ...units };
     });
 
+    const movedTexts: string[] = [];
+    const combatTexts: string[] = [];
+    const capturedCodes: string[] = [];
+
+    movementQueue.forEach((order) => {
+      const available = nextGarrisons[order.fromCode]?.[order.unitId] ?? 0;
+      const committed = Math.min(available, order.quantity);
+      if (committed <= 0) return;
+
+      nextGarrisons[order.fromCode] = {
+        ...(nextGarrisons[order.fromCode] ?? {}),
+        [order.unitId]: available - committed,
+      };
+
+      if (order.kind === "move") {
+        nextGarrisons[order.toCode] = {
+          ...(nextGarrisons[order.toCode] ?? {}),
+          [order.unitId]: (nextGarrisons[order.toCode]?.[order.unitId] ?? 0) + committed,
+        };
+        movedTexts.push(order.fromCity + " → " + order.toCity + ": " + committed + " " + order.unitName);
+        return;
+      }
+
+      const attacker = unitDefinition(order.unitId);
+      if (!attacker) return;
+
+      const defenders = { ...(nextGarrisons[order.toCode] ?? {}) };
+      const defensePower = totalDefensePower(defenders);
+      const attackPower = committed * attacker.stats.attack * (1 + attacker.stats.critical * 0.04);
+
+      if (defensePower <= 0) {
+        nextGarrisons[order.toCode] = { [order.unitId]: committed };
+        capturedCodes.push(order.toCode);
+        combatTexts.push(order.toCity + " savunmasızdı; şehir ele geçirildi.");
+        return;
+      }
+
+      const defenderLossFraction = Math.min(1, attackPower / Math.max(1, defensePower * 1.25));
+      const attackerLossFraction = Math.min(1, defensePower / Math.max(1, attackPower * 1.4));
+
+      const reducedDefenders: Record<string, number> = {};
+      Object.entries(defenders).forEach(([unitId, quantity]) => {
+        const remaining = Math.max(0, Math.round(quantity * (1 - defenderLossFraction)));
+        if (remaining > 0) reducedDefenders[unitId] = remaining;
+      });
+
+      const attackerSurvivors = Math.max(0, Math.round(committed * (1 - attackerLossFraction)));
+      const remainingDefenders = Object.values(reducedDefenders).reduce((sum, quantity) => sum + quantity, 0);
+
+      if (remainingDefenders === 0 && attackerSurvivors > 0) {
+        nextGarrisons[order.toCode] = { [order.unitId]: attackerSurvivors };
+        capturedCodes.push(order.toCode);
+        combatTexts.push(order.toCity + " ele geçirildi. " + attackerSurvivors + "/" + committed + " " + order.unitName + " hayatta kaldı.");
+      } else {
+        nextGarrisons[order.toCode] = reducedDefenders;
+        combatTexts.push(order.toCity + " saldırısı püskürtüldü. Saldıran kayıp: " + (committed - attackerSurvivors) + ".");
+      }
+    });
+
+    completed.forEach((order) => {
+      nextGarrisons[order.countryId] = {
+        ...(nextGarrisons[order.countryId] ?? {}),
+        [order.unitId]: (nextGarrisons[order.countryId]?.[order.unitId] ?? 0) + order.quantity,
+      };
+    });
+
+    setGarrisons(nextGarrisons);
+
+    if (capturedCodes.length > 0) {
+      setCountryState((current) => {
+        const next = { ...current };
+        capturedCodes.forEach((code) => {
+          next[code] = {
+            ...(next[code] ?? { troops: 5, resource: "Gıda" }),
+            owner: currentPlayer,
+          };
+        });
+        return next;
+      });
+    }
+
     const completedText = completed
-      .map((order) => `${order.cityName}: +${order.quantity} ${order.unitName}`)
+      .map((order) => order.cityName + ": +" + order.quantity + " " + order.unitName)
       .join(" · ");
 
     const incomeGold = cityNodes.reduce((sum, city) => {
@@ -483,10 +527,11 @@ export default function App() {
     }));
 
     const messages = [
-      `Tur ${nextTurn} başladı.`,
-      movedTexts.length ? `Hareket: ${movedTexts.join(" · ")}` : "",
-      completedText ? `Üretim: ${completedText}` : "",
-      `Şehir geliri: +${incomeGold} Altın`,
+      "Tur " + nextTurn + " başladı.",
+      movedTexts.length ? "Hareket: " + movedTexts.join(" · ") : "",
+      combatTexts.length ? "Savaş: " + combatTexts.join(" · ") : "",
+      completedText ? "Üretim: " + completedText : "",
+      "Şehir geliri: +" + incomeGold + " Altın",
     ].filter(Boolean);
 
     setNotice(messages.join(" | "));
@@ -724,7 +769,13 @@ export default function App() {
                   const [x2, y2] = project([to.lon, to.lat]);
 
                   return (
-                    <g className="movement-route" key={order.id}>
+                    <g
+                      className={
+                        "movement-route " +
+                        (order.kind === "attack" ? "attack-route" : "")
+                      }
+                      key={order.id}
+                    >
                       <line x1={x1} y1={y1} x2={x2} y2={y2} />
                       <circle cx={x2} cy={y2} r="5" />
                     </g>
@@ -905,7 +956,10 @@ export default function App() {
                 productionQueue.map((order) => (
                   <div className="queue-order" key={order.id}>
                     <div>
-                      <strong>{order.quantity} × {order.unitName}</strong>
+                      <strong>
+                        {order.kind === "attack" ? "SALDIRI · " : ""}
+                        {order.quantity} × {order.unitName}
+                      </strong>
                       <small>{order.cityName}</small>
                     </div>
                     <b>Tur {order.readyTurn}</b>
@@ -987,9 +1041,6 @@ export default function App() {
             </div>
           </div>
 
-          <button className="attack" onClick={claimSelected}>
-            ⚔ BÖLGEYİ ELE GEÇİR
-          </button>
 
           <div className="notice">{notice}</div>
 
