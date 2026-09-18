@@ -27,6 +27,7 @@ import {
   citiesForCountry,
   cityHasPort,
   type CityNode,
+  type CountryDefinition,
 } from "./gameData";
 
 type Screen = "lobby" | "setup" | "homeland" | "game";
@@ -284,9 +285,193 @@ const GEO_NAME_TO_CODE: Record<string, string> = {
 };
 
 function featureCountryCode(feature: WorldFeature) {
-  const id = String(feature.id ?? "");
-  if (COUNTRY_BY_CODE[id]) return id;
-  return GEO_NAME_TO_CODE[feature.properties?.name ?? ""] ?? id;
+  const id = String(feature.id ?? "")
+    .trim()
+    .toUpperCase();
+  if (id) return id;
+  return (
+    GEO_NAME_TO_CODE[feature.properties?.name ?? ""] ??
+    ""
+  );
+}
+
+function geometryOuterRings(geometry: any): number[][][] {
+  if (geometry?.type === "Polygon") {
+    return geometry.coordinates?.[0]
+      ? [geometry.coordinates[0]]
+      : [];
+  }
+  if (geometry?.type === "MultiPolygon") {
+    return (geometry.coordinates ?? [])
+      .map((polygon: number[][][]) => polygon?.[0])
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function ringSignedArea(ring: number[][]) {
+  let area = 0;
+  for (let i = 0; i < ring.length; i += 1) {
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[(i + 1) % ring.length];
+    area += x1 * y2 - x2 * y1;
+  }
+  return area / 2;
+}
+
+function ringCentroid(ring: number[][]): [number, number] {
+  const area = ringSignedArea(ring);
+  if (Math.abs(area) < 1e-9) {
+    const sums = ring.reduce(
+      (acc, point) => [acc[0] + point[0], acc[1] + point[1]],
+      [0, 0]
+    );
+    return [
+      sums[0] / Math.max(1, ring.length),
+      sums[1] / Math.max(1, ring.length),
+    ];
+  }
+
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < ring.length; i += 1) {
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[(i + 1) % ring.length];
+    const cross = x1 * y2 - x2 * y1;
+    cx += (x1 + x2) * cross;
+    cy += (y1 + y2) * cross;
+  }
+  const factor = 1 / (6 * area);
+  return [cx * factor, cy * factor];
+}
+
+function geometryRepresentativePoint(
+  geometry: any
+): [number, number] {
+  const rings = geometryOuterRings(geometry);
+  if (!rings.length) return [0, 0];
+
+  const largest = rings.reduce((best, ring) =>
+    Math.abs(ringSignedArea(ring)) >
+    Math.abs(ringSignedArea(best))
+      ? ring
+      : best
+  );
+
+  const centroid = ringCentroid(largest);
+  if (
+    geometryContainsPoint(
+      geometry,
+      centroid[0],
+      centroid[1]
+    )
+  ) {
+    return centroid;
+  }
+
+  const sample = largest[Math.floor(largest.length / 3)] ??
+    largest[0] ??
+    [0, 0];
+  return [sample[0], sample[1]];
+}
+
+function geometryBounds(geometry: any) {
+  const rings = geometryOuterRings(geometry);
+  const points = rings.flat();
+  if (!points.length) {
+    return {
+      minLon: 0,
+      maxLon: 0,
+      minLat: 0,
+      maxLat: 0,
+    };
+  }
+  return points.reduce(
+    (bounds, [lon, lat]) => ({
+      minLon: Math.min(bounds.minLon, lon),
+      maxLon: Math.max(bounds.maxLon, lon),
+      minLat: Math.min(bounds.minLat, lat),
+      maxLat: Math.max(bounds.maxLat, lat),
+    }),
+    {
+      minLon: Number.POSITIVE_INFINITY,
+      maxLon: Number.NEGATIVE_INFINITY,
+      minLat: Number.POSITIVE_INFINITY,
+      maxLat: Number.NEGATIVE_INFINITY,
+    }
+  );
+}
+
+function generatedCityPoints(
+  geometry: any,
+  count: number
+): [number, number][] {
+  const center = geometryRepresentativePoint(geometry);
+  const rings = geometryOuterRings(geometry);
+  const largest = rings.length
+    ? rings.reduce((best, ring) =>
+        Math.abs(ringSignedArea(ring)) >
+        Math.abs(ringSignedArea(best))
+          ? ring
+          : best
+      )
+    : [];
+
+  const points: [number, number][] = [center];
+  if (!largest.length || count <= 1) return points;
+
+  for (let i = 1; i < count; i += 1) {
+    const index = Math.floor(
+      ((i * largest.length) / count + largest.length * 0.11) %
+        largest.length
+    );
+    const boundary = largest[index] ?? largest[0];
+    let factor = 0.48;
+    let candidate: [number, number] = [
+      center[0] + (boundary[0] - center[0]) * factor,
+      center[1] + (boundary[1] - center[1]) * factor,
+    ];
+
+    while (
+      factor > 0.12 &&
+      !geometryContainsPoint(
+        geometry,
+        candidate[0],
+        candidate[1]
+      )
+    ) {
+      factor -= 0.08;
+      candidate = [
+        center[0] + (boundary[0] - center[0]) * factor,
+        center[1] + (boundary[1] - center[1]) * factor,
+      ];
+    }
+
+    points.push(candidate);
+  }
+  return points;
+}
+
+function generatedRegion(lon: number, lat: number) {
+  if (lat > 35 && lon >= -25 && lon <= 60) return "Avrupa";
+  if (lat > 10 && lon > 60) return "Asya";
+  if (lat < -10 && lon > 100) return "Okyanusya";
+  if (lon < -30 && lat > 5) return "Kuzey Amerika";
+  if (lon < -30 && lat <= 5) return "Güney Amerika";
+  if (lon >= -25 && lon <= 60 && lat <= 35) return "Afrika / Orta Doğu";
+  return "Dünya";
+}
+
+function generatedResource(code: string): "Altın" | "Çelik" | "Petrol" {
+  const score = [...code].reduce(
+    (sum, char) => sum + char.charCodeAt(0),
+    0
+  );
+  return score % 3 === 0
+    ? "Petrol"
+    : score % 3 === 1
+      ? "Çelik"
+      : "Altın";
 }
 
 function wrapWorldX(value: number) {
