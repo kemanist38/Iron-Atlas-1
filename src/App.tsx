@@ -606,7 +606,7 @@ export default function App() {
     if (source.code === city.code) {
       setMoveSourceCode(null);
       setSelectedId(city.countryCode);
-    setSelectedCityId(city.code);
+      setSelectedCityId(city.code);
       setNotice("Hareket emri iptal edildi.");
       return;
     }
@@ -656,7 +656,8 @@ export default function App() {
 
     setOrderSequence((current) => current + 1);
     setMoveSourceCode(null);
-    setSelectedId(city.code);
+    setSelectedId(city.countryCode);
+    setSelectedCityId(city.code);
     setNotice(
       orderKind === "attack"
         ? source.name + " → " + city.name + ": " + movementQty + " × " + selectedUnit.name + " SALDIRI emri kuyruğa eklendi."
@@ -1018,6 +1019,7 @@ export default function App() {
                           }
                           onClick={() => {
                             setSelectedId(id);
+                            setSelectedCityId("");
                             setNotice(
                               `${feature.properties?.name ?? id} seçildi.`
                             );
