@@ -940,7 +940,7 @@ button:disabled {
 .unit-row {
   min-height: 51px;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 26px 38px 38px;
+  grid-template-columns: 42px minmax(0, 1fr) 28px 38px 38px 42px;
   gap: 5px;
   align-items: center;
   margin-bottom: 4px;
@@ -1562,4 +1562,16 @@ button:disabled {
 
 .field-army-marker.land-group circle {
   stroke: #77d497;
+}
+
+
+.capacity-strip.instant-production {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.capacity-strip.instant-production span:nth-of-type(2) {
+  text-align: right;
 }
