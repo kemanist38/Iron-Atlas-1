@@ -2266,12 +2266,49 @@ export default function App() {
                   (sum, quantity) => sum + quantity,
                   0
                 );
+                const armyDomains = new Set(
+                  Object.entries(army.units)
+                    .filter(([, quantity]) => quantity > 0)
+                    .map(
+                      ([unitId]) =>
+                        UNIT_BY_ID[unitId]?.domain
+                    )
+                    .filter(Boolean)
+                );
+                const armyHasLand =
+                  armyDomains.has("land");
+                const armyHasNaval =
+                  armyDomains.has("naval");
+                const armyHasAir =
+                  armyDomains.has("air");
+                const armyMarker =
+                  armyHasLand && armyHasNaval
+                    ? "⚓"
+                    : armyHasLand && armyHasAir
+                      ? "✈"
+                      : armyHasNaval
+                        ? "◆"
+                        : armyHasAir
+                          ? "✈"
+                          : "▲";
+                const armyModeClass =
+                  armyHasLand && armyHasNaval
+                    ? " convoy"
+                    : armyHasLand && armyHasAir
+                      ? " airlift"
+                      : armyHasNaval
+                        ? " fleet"
+                        : armyHasAir
+                          ? " air-group"
+                          : " land-group";
                 return (
                   <g
                     key={army.id + "-army-" + offset}
                     transform={`translate(${army.x + offset} ${army.y}) scale(${1 / mapZoom})`}
                     className={
-                      "field-army-marker " +
+                      "field-army-marker" +
+                      armyModeClass +
+                      " " +
                       (selectedFieldArmyId === army.id
                         ? "selected "
                         : "")
@@ -2299,9 +2336,13 @@ export default function App() {
                       );
                     }}
                   >
-                    <circle r="9" />
-                    <path d="M-4 3 L0 -5 L4 3 Z" />
-                    <text y="13">{total}</text>
+                    <circle r="10" />
+                    <text className="field-army-symbol" y="3">
+                      {armyMarker}
+                    </text>
+                    <text className="field-army-total" y="16">
+                      {total}
+                    </text>
                   </g>
                 );
               })}
