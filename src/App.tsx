@@ -1152,7 +1152,7 @@ export default function App() {
                               <circle
                                 cx="0"
                                 cy="0"
-                                r="8"
+                                r="6.5"
                                 className="capital-city-ring"
                               />
                               <text
@@ -1169,7 +1169,7 @@ export default function App() {
                               <circle
                                 cx="0"
                                 cy="0"
-                                r="7.5"
+                                r="5.5"
                                 className="recruit-city-node"
                               />
                               <text
