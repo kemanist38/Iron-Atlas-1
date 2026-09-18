@@ -366,17 +366,28 @@ export default function App() {
     (city) => city.isCapital
   );
 
+  const moveSelectionEntries = Object.entries(moveDraft).filter(
+    ([, quantity]) => quantity > 0
+  );
+  const moveSelectionCount = moveSelectionEntries.reduce(
+    (sum, [, quantity]) => sum + quantity,
+    0
+  );
   const activeMoveSource = moveSourceCode
     ? CITIES.find((city) => city.code === moveSourceCode)
     : undefined;
+  const previewMoveSource =
+    activeMoveSource ??
+    (cityPanelOpen &&
+    cityTab === "movement" &&
+    selectedCityOwner === currentPlayer
+      ? selectedCity
+      : undefined);
   const activeMoveRangeKm = useMemo(() => {
-    const entries = Object.entries(moveDraft).filter(
-      ([, quantity]) => quantity > 0
-    );
-    if (!entries.length) return 0;
-    const ranges = entries
+    if (!moveSelectionEntries.length) return 0;
+    const ranges = moveSelectionEntries
       .map(([unitId]) => UNIT_BY_ID[unitId])
-      .filter(Boolean)
+      .filter((unit): unit is UnitDefinition => Boolean(unit))
       .map((unit) =>
         movementRangeKm(applyStrategy(unit, selectedStrategy))
       );
@@ -612,7 +623,7 @@ export default function App() {
     setMoveSourceCode(selectedCity.code);
     setCityPanelOpen(false);
     setNotice(
-      `${selectedCity.name}: hedef şehri haritadan seç.`
+      `${selectedCity.name}: ${moveSelectionCount} birlik seçildi. Yeşil menzil içindeki hedef şehre tıkla.`
     );
   }
 
@@ -1012,6 +1023,19 @@ export default function App() {
                   cityOwners[city.code] ?? null;
                 const isSelected =
                   selectedCityCode === city.code;
+                const targetDistance =
+                  activeMoveSource && activeMoveRangeKm > 0
+                    ? haversineKm(activeMoveSource, city)
+                    : 0;
+                const inTargetMode = Boolean(activeMoveSource);
+                const isReachableTarget =
+                  inTargetMode &&
+                  city.code !== activeMoveSource?.code &&
+                  targetDistance <= activeMoveRangeKm;
+                const isUnreachableTarget =
+                  inTargetMode &&
+                  city.code !== activeMoveSource?.code &&
+                  targetDistance > activeMoveRangeKm;
                 const showLabel =
                   mapZoom >= 1.35 ||
                   isSelected ||
@@ -1021,7 +1045,9 @@ export default function App() {
                     key={city.code + "-" + offset}
                     className={
                       "city-marker " +
-                      (isSelected ? "selected " : "")
+                      (isSelected ? "selected " : "") +
+                      (isReachableTarget ? "reachable-target " : "") +
+                      (isUnreachableTarget ? "unreachable-target " : "")
                     }
                     transform={`translate(${x} ${y}) scale(${1 / mapZoom})`}
                     onClick={(event) => {
@@ -1073,12 +1099,12 @@ export default function App() {
               })}
 
             {mode === "game" &&
-              activeMoveSource &&
+              previewMoveSource &&
               activeMoveRangeRadius > 0 &&
               (() => {
                 const [x, y] = project([
-                  activeMoveSource.lon,
-                  activeMoveSource.lat,
+                  previewMoveSource.lon,
+                  previewMoveSource.lat,
                 ]);
                 return (
                   <circle
@@ -1934,8 +1960,8 @@ export default function App() {
             ) : (
               <div className="unit-scroll movement-list">
                 <p>
-                  Miktarı seç, “HEDEF SEÇ” de ve
-                  haritada hedef şehre tıkla.
+                  Önce slider, +/− veya ALL ile birlik miktarını seç.
+                  Miktar seçildiği anda yeşil menzil haritada görünür.
                 </p>
                 {UNIT_DEFINITIONS.filter(
                   (unit) =>
@@ -1969,6 +1995,20 @@ export default function App() {
                           Garnizon: {available}
                         </span>
                       </div>
+                      <button
+                        className="move-step"
+                        onClick={() =>
+                          setMoveDraft((current) => ({
+                            ...current,
+                            [unit.id]: Math.max(
+                              0,
+                              (current[unit.id] ?? 0) - 1
+                            ),
+                          }))
+                        }
+                      >
+                        −
+                      </button>
                       <input
                         type="range"
                         min="0"
@@ -1983,7 +2023,21 @@ export default function App() {
                           }))
                         }
                       />
-                      <b>{selected}</b>
+                      <button
+                        className="move-step"
+                        onClick={() =>
+                          setMoveDraft((current) => ({
+                            ...current,
+                            [unit.id]: Math.min(
+                              available,
+                              (current[unit.id] ?? 0) + 1
+                            ),
+                          }))
+                        }
+                      >
+                        +
+                      </button>
+                      <b className="move-selected-count">{selected}</b>
                       <button
                         onClick={() =>
                           setMoveDraft((current) => ({
@@ -1998,14 +2052,28 @@ export default function App() {
                   );
                 })}
 
+                <div className="move-summary">
+                  <span>Seçilen birlik</span>
+                  <b>{moveSelectionCount}</b>
+                  <span>Menzil</span>
+                  <b>
+                    {moveSelectionCount > 0
+                      ? Math.round(activeMoveRangeKm).toLocaleString("tr-TR") + " km"
+                      : "—"}
+                  </b>
+                </div>
+
                 <button
                   className="primary-button target-button"
                   disabled={
-                    selectedCityOwner !== currentPlayer
+                    selectedCityOwner !== currentPlayer ||
+                    moveSelectionCount === 0
                   }
                   onClick={startMovement}
                 >
-                  HEDEF SEÇ
+                  {moveSelectionCount > 0
+                    ? "HEDEF SEÇ"
+                    : "ÖNCE BİRLİK SEÇ"}
                 </button>
               </div>
             )}
@@ -2016,11 +2084,21 @@ export default function App() {
 
         {moveSourceCode && (
           <div className="target-hint">
-            HEDEF ŞEHRİ SEÇ · menzil{" "}
-            {Math.round(activeMoveRangeKm).toLocaleString(
-              "tr-TR"
-            )}{" "}
-            km
+            <span>
+              HEDEF ŞEHRİ SEÇ · {moveSelectionCount} birlik · menzil{" "}
+              {Math.round(activeMoveRangeKm).toLocaleString("tr-TR")} km
+            </span>
+            <button
+              onClick={() => {
+                setMoveSourceCode(null);
+                setMoveDraft({});
+                setCityPanelOpen(true);
+                setCityTab("movement");
+                setNotice("Taşıma emri iptal edildi.");
+              }}
+            >
+              İPTAL
+            </button>
           </div>
         )}
       </main>
