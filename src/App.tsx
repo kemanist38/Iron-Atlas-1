@@ -1,3 +1,4 @@
+// BUILD: city-control-v1.4-verified
 import { useEffect, useMemo, useRef, useState } from "react";
 import { UNIT_DEFINITIONS, type UnitDefinition } from "./unitData";
 import { UNIT_ICON_BY_ID } from "./unitIcons";
