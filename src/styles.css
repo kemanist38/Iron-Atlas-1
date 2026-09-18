@@ -691,3 +691,24 @@ input:focus {
   object-fit: contain;
   filter: drop-shadow(0 8px 12px rgba(0,0,0,.4));
 }
+
+
+.map-unit-marker rect {
+  fill: rgba(5,12,20,.92);
+  stroke: #315b7c;
+  stroke-width: 1;
+}
+
+.map-unit-marker text {
+  fill: #f4c95d;
+  font-size: 7px;
+  font-weight: 800;
+  text-anchor: middle;
+  stroke: #07111b;
+  stroke-width: 1.5px;
+  paint-order: stroke;
+}
+
+.map-unit-marker image {
+  pointer-events: none;
+}
