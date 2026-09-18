@@ -1837,3 +1837,533 @@ input:focus {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* v1.6 map homeland selection + floating city command UI */
+
+/* Give the map the screen. The right intelligence column is replaced by the city popup. */
+.game-layout {
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px;
+}
+
+.game-layout > .intel {
+  display: none;
+}
+
+.gamebar {
+  grid-template-columns: 190px minmax(180px,1fr) 70px repeat(3,96px) 110px 66px;
+}
+
+.top-end-turn {
+  border: 0;
+  border-left: 1px solid #283440;
+  background: #b99b20;
+  color: #11150f;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+
+.top-end-turn:hover {
+  filter: brightness(1.08);
+}
+
+.map-wrap {
+  height: calc(100vh - 137px);
+  min-height: 590px;
+}
+
+.map-overlay.compact {
+  min-width: 0;
+  max-width: 260px;
+  padding: 8px 11px;
+  background: rgba(5, 10, 12, .78);
+}
+
+.map-overlay.compact strong {
+  font-size: 13px;
+}
+
+.map-overlay.compact small {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+/* Full-screen country purchase / homeland selection map */
+.homeland-map-screen {
+  min-height: 100vh;
+  overflow: hidden;
+  background: #050908;
+}
+
+.homeland-map-bar {
+  height: 48px;
+  display: grid;
+  grid-template-columns: 260px 1fr 90px;
+  align-items: center;
+  border-bottom: 1px solid #252b28;
+  background: #050707;
+  color: #e2e5dd;
+  z-index: 20;
+  position: relative;
+}
+
+.homeland-map-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding-left: 16px;
+}
+
+.homeland-map-brand strong {
+  font-size: 15px;
+  letter-spacing: .16em;
+}
+
+.homeland-map-brand span,
+.homeland-map-instruction {
+  color: #8d9990;
+  font-size: 10px;
+}
+
+.homeland-map-instruction {
+  text-align: center;
+  font-weight: 700;
+}
+
+.homeland-map-back {
+  height: 48px;
+}
+
+.homeland-map-wrap {
+  position: relative;
+  height: calc(100vh - 48px);
+  min-height: 620px;
+  overflow: hidden;
+  background: #142d2c;
+}
+
+.homeland-world-map {
+  width: 100%;
+  height: 100%;
+}
+
+.homeland-ocean {
+  fill: #173d3e;
+}
+
+.homeland-terrain {
+  filter:
+    brightness(.62)
+    contrast(1.12)
+    saturate(.78)
+    sepia(.10)
+    hue-rotate(-4deg);
+}
+
+.homeland-country {
+  fill: transparent;
+  fill-opacity: 0;
+  stroke: rgba(235, 237, 224, .40);
+  stroke-width: .7;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+  transition: fill-opacity .15s, stroke .15s, stroke-width .15s;
+}
+
+.homeland-country.supported:hover {
+  fill: #d5b44f;
+  fill-opacity: .18;
+  stroke: #f0dd8e;
+  stroke-width: 1.5;
+}
+
+.homeland-country.unsupported {
+  cursor: default;
+}
+
+.homeland-country.selected {
+  fill: #d8b444;
+  fill-opacity: .28;
+  stroke: #fff2b5;
+  stroke-width: 2;
+}
+
+.homeland-purchase-panel {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 270px;
+  padding: 14px;
+  border: 1px solid #443e24;
+  border-radius: 5px;
+  background:
+    linear-gradient(180deg, rgba(42,14,12,.96), rgba(11,11,9,.96));
+  box-shadow: 0 12px 30px rgba(0,0,0,.42);
+  color: #efeee7;
+  z-index: 15;
+}
+
+.homeland-purchase-panel h3 {
+  margin: 5px 0 12px;
+  font-size: 18px;
+}
+
+.purchase-stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(185,168,89,.16);
+  font-size: 11px;
+}
+
+.purchase-stat span {
+  color: #a5a89e;
+}
+
+.purchase-stat b {
+  color: #eee8c7;
+}
+
+.purchase-country-button {
+  width: 100%;
+  margin-top: 14px;
+  padding: 11px 8px;
+  border: 1px solid #c7a91f;
+  border-radius: 3px;
+  background: linear-gradient(#b7a815, #817c00);
+  color: #f8f3cf;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.homeland-purchase-panel > small {
+  display: block;
+  margin-top: 9px;
+  color: #8c958d;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.unsupported-country-note {
+  padding: 11px;
+  border: 1px solid #453d2b;
+  background: rgba(29,24,15,.75);
+  color: #b7b1a2;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.homeland-map-controls {
+  top: auto !important;
+  left: auto !important;
+  right: 18px;
+  bottom: 18px;
+}
+
+.homeland-map-message {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  padding: 7px 13px;
+  border: 1px solid rgba(217,199,118,.22);
+  border-radius: 4px;
+  background: rgba(4,8,7,.72);
+  color: #c5c5b6;
+  font-size: 10px;
+  z-index: 10;
+}
+
+/* atWar-inspired but original city command window */
+.city-command-window {
+  position: absolute;
+  top: 68px;
+  left: 74px;
+  width: 330px;
+  max-height: calc(100% - 100px);
+  border: 1px solid #351d1b;
+  border-radius: 5px;
+  background: rgba(9, 11, 11, .98);
+  box-shadow: 0 16px 40px rgba(0,0,0,.58);
+  color: #e6e8e3;
+  overflow: hidden;
+  z-index: 30;
+}
+
+.city-command-title {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 8px 7px 11px;
+  background:
+    linear-gradient(90deg, #68100c, #330806 70%, #210605);
+}
+
+.city-command-title strong {
+  display: block;
+  font-size: 15px;
+}
+
+.city-command-title small {
+  display: block;
+  margin-top: 2px;
+  color: #cab8ab;
+  font-size: 9px;
+}
+
+.city-command-title > button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #7c2420;
+  border-radius: 3px;
+  background: #8b0d09;
+  color: white;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.city-command-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  border-bottom: 1px dotted #3b392d;
+  background: #0a0c0c;
+  font-size: 10px;
+  color: #a5aaa4;
+}
+
+.city-command-meta b {
+  color: #d7d8d0;
+}
+
+.city-command-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 7px;
+  gap: 5px;
+  background: #070909;
+}
+
+.city-command-tabs button {
+  padding: 8px 5px;
+  border: 1px solid #343a36;
+  border-radius: 3px;
+  background: #151917;
+  color: #999f98;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.city-command-tabs button.active {
+  border-color: #a8971a;
+  background: #5d5705;
+  color: #f1edc7;
+}
+
+.city-unit-list,
+.city-movement-list {
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 6px;
+  background: #080a09;
+}
+
+.city-capacity-line,
+.movement-help {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 2px 2px 6px;
+  padding: 7px 8px;
+  border-bottom: 1px dotted #464434;
+  color: #b6baae;
+  font-size: 10px;
+}
+
+.city-capacity-line b {
+  color: #d6c72f;
+  font-size: 13px;
+}
+
+.movement-help {
+  line-height: 1.4;
+}
+
+.city-unit-row {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 42px minmax(0,1fr) 28px 29px 29px;
+  gap: 5px;
+  align-items: center;
+  margin-bottom: 4px;
+  padding: 4px 5px;
+  border: 1px solid #232824;
+  border-radius: 3px;
+  background:
+    linear-gradient(90deg, #131716, #0c0f0e);
+}
+
+.city-unit-row.movement {
+  grid-template-columns: 42px minmax(0,1fr) 29px 32px 29px;
+}
+
+.city-unit-row:hover {
+  border-color: #4c5042;
+  background: #181c19;
+}
+
+.city-unit-icon {
+  width: 40px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 2px;
+  background: #0a0c0b;
+}
+
+.city-unit-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.city-unit-info {
+  min-width: 0;
+}
+
+.city-unit-info strong {
+  display: block;
+  overflow: hidden;
+  color: #e0e2dc;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.city-unit-info small {
+  display: block;
+  margin-top: 3px;
+  color: #979b90;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.city-unit-pending {
+  color: #d4c529;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.city-unit-row button {
+  width: 29px;
+  height: 29px;
+  border: 1px solid #343b34;
+  border-radius: 3px;
+  background: #343a30;
+  color: #e3e8d8;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.city-unit-row button:hover:not(:disabled) {
+  border-color: #a39b3b;
+  background: #55593d;
+}
+
+.city-unit-row button:disabled {
+  opacity: .25;
+  cursor: not-allowed;
+}
+
+.move-draft-count {
+  color: #e1d951;
+  text-align: center;
+  font-size: 11px;
+}
+
+.city-transfer-button {
+  width: 100%;
+  margin-top: 7px;
+  padding: 10px;
+  border: 1px solid #aba20d;
+  border-radius: 3px;
+  background: linear-gradient(#9f9e00,#737500);
+  color: #f4f2ce;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.city-transfer-button:disabled {
+  opacity: .35;
+}
+
+/* Make map text readable now that the map gets more space */
+.city-economic-label > text:first-child {
+  font-size: 9.5px;
+}
+
+.city-economic-label .city-income {
+  font-size: 8px;
+}
+
+.city-economic-label .city-growth {
+  font-size: 7px;
+}
+
+@media (max-width: 1000px) {
+  .game-layout {
+    grid-template-columns: 150px minmax(0, 1fr);
+  }
+
+  .gamebar {
+    grid-template-columns: 150px minmax(160px,1fr) 64px repeat(3,82px) 96px 60px;
+  }
+
+  .city-command-window {
+    left: 18px;
+    width: min(330px, calc(100% - 36px));
+  }
+}
+
+@media (max-width: 720px) {
+  .game-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .game-layout > .side:not(.intel) {
+    display: none;
+  }
+
+  .map-wrap {
+    height: calc(100vh - 130px);
+    min-height: 500px;
+  }
+
+  .homeland-purchase-panel {
+    top: 10px;
+    right: 10px;
+    width: 235px;
+  }
+
+  .homeland-map-instruction {
+    display: none;
+  }
+
+  .homeland-map-bar {
+    grid-template-columns: 1fr 80px;
+  }
+}
