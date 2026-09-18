@@ -484,6 +484,7 @@ button:disabled {
 }
 
 .country-shape {
+  pointer-events: all;
   stroke: rgba(236, 239, 226, 0.35);
   stroke-width: 0.7;
   vector-effect: non-scaling-stroke;
