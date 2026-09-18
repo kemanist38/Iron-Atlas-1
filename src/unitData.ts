@@ -1,18 +1,31 @@
 export type UnitDomain = "land" | "air" | "naval";
 
+export type UnitStats = {
+  attack: number;
+  defense: number;
+  critical: number;
+  hp: number;
+  movement: number;
+  view: number;
+  capacity: number;
+  cost: number;
+  collateral: number;
+};
+
+export type DefenceBonus = {
+  against: string;
+  value: number;
+};
+
 export type UnitDefinition = {
   id: string;
   name: string;
   domain: UnitDomain;
-  attack: number;
-  defense: number;
-  speed: number;
-  productionTurns: number;
-  goldCost: number;
-  steelCost: number;
-  oilCost: number;
+  stats: UnitStats;
+  defenceBonuses: DefenceBonus[];
   special: string;
   assetFile: string;
+  estimated?: boolean;
 };
 
 export const UNIT_DEFINITIONS: UnitDefinition[] = [
@@ -20,196 +33,130 @@ export const UNIT_DEFINITIONS: UnitDefinition[] = [
     id: "infantry",
     name: "Piyade",
     domain: "land",
-    attack: 4,
-    defense: 6,
-    speed: 3,
-    productionTurns: 1,
-    goldCost: 120,
-    steelCost: 20,
-    oilCost: 0,
-    special: "Şehir ve savunma savaşlarında dengeli temel birlik.",
+    stats: { attack: 4, defense: 6, critical: 5, hp: 7, movement: 6, view: 16, capacity: 0, cost: 70, collateral: 0 },
+    defenceBonuses: [{ against: "Helikopter", value: -2 }],
+    special: "Savunmada güçlü temel kara birliği.",
     assetFile: "infantry.png",
   },
   {
     id: "militia",
     name: "Milis",
     domain: "land",
-    attack: 2,
-    defense: 4,
-    speed: 2,
-    productionTurns: 1,
-    goldCost: 60,
-    steelCost: 5,
-    oilCost: 0,
-    special: "Ucuz ve hızlı üretilir; açık arazide zayıftır.",
+    stats: { attack: 3, defense: 4, critical: 0, hp: 7, movement: 2, view: 16, capacity: 0, cost: 30, collateral: 0 },
+    defenceBonuses: [{ against: "Helikopter", value: -1 }],
+    special: "Ucuz ve yavaş; temel bölge savunması için uygundur.",
     assetFile: "militia.png",
   },
   {
     id: "special_forces",
     name: "Özel Kuvvet",
     domain: "land",
-    attack: 8,
-    defense: 7,
-    speed: 5,
-    productionTurns: 3,
-    goldCost: 520,
-    steelCost: 80,
-    oilCost: 30,
-    special: "Yüksek moral, keşif ve baskın bonusu.",
+    stats: { attack: 7, defense: 3, critical: 5, hp: 7, movement: 6, view: 20, capacity: 0, cost: 160, collateral: 0 },
+    defenceBonuses: [{ against: "Piyade", value: 1 }],
+    special: "Baskın ve sürpriz saldırılar için yüksek hareket ve görüş kabiliyeti.",
     assetFile: "special_forces.png",
   },
   {
     id: "desert_infantry",
     name: "Çöl Piyadesi",
     domain: "land",
-    attack: 5,
-    defense: 5,
-    speed: 4,
-    productionTurns: 2,
-    goldCost: 210,
-    steelCost: 30,
-    oilCost: 5,
-    special: "Çöl arazisinde hareket ve savaş bonusu.",
+    stats: { attack: 5, defense: 5, critical: 5, hp: 7, movement: 7, view: 18, capacity: 0, cost: 90, collateral: 0 },
+    defenceBonuses: [],
+    special: "Çöl arazisi için uyarlanmış hareketli piyade.",
     assetFile: "desert_infantry.png",
+    estimated: true,
   },
   {
     id: "light_tank",
     name: "Hafif Tank",
     domain: "land",
-    attack: 8,
-    defense: 6,
-    speed: 8,
-    productionTurns: 2,
-    goldCost: 450,
-    steelCost: 180,
-    oilCost: 80,
-    special: "Hızlı keşif ve zayıf hatları yarma.",
+    stats: { attack: 8, defense: 4, critical: 5, hp: 7, movement: 7, view: 16, capacity: 0, cost: 120, collateral: 2 },
+    defenceBonuses: [],
+    special: "Hızlı kara saldırısı ve hat yarma için ana zırhlı birlik.",
     assetFile: "light_tank.png",
   },
   {
     id: "heavy_tank",
     name: "Ağır Tank",
     domain: "land",
-    attack: 13,
-    defense: 12,
-    speed: 4,
-    productionTurns: 4,
-    goldCost: 900,
-    steelCost: 420,
-    oilCost: 180,
-    special: "Kara savaşında yüksek zırh ve ateş gücü.",
+    stats: { attack: 10, defense: 6, critical: 5, hp: 8, movement: 5, view: 16, capacity: 0, cost: 200, collateral: 3 },
+    defenceBonuses: [],
+    special: "Daha yüksek HP ve savunma karşılığında daha düşük hareket.",
     assetFile: "heavy_tank.png",
+    estimated: true,
   },
   {
     id: "fighter",
     name: "Savaş Uçağı",
     domain: "air",
-    attack: 11,
-    defense: 8,
-    speed: 18,
-    productionTurns: 3,
-    goldCost: 850,
-    steelCost: 220,
-    oilCost: 260,
-    special: "Hava üstünlüğü ve bombardıman uçaklarına karşı etkili.",
+    stats: { attack: 7, defense: 6, critical: 5, hp: 7, movement: 12, view: 24, capacity: 0, cost: 220, collateral: 2 },
+    defenceBonuses: [],
+    special: "Hava üstünlüğü ve hızlı destek görevlerinde kullanılır.",
     assetFile: "fighter.png",
+    estimated: true,
   },
   {
     id: "attack_helicopter",
     name: "Saldırı Helikopteri",
     domain: "air",
-    attack: 10,
-    defense: 6,
-    speed: 12,
-    productionTurns: 3,
-    goldCost: 720,
-    steelCost: 190,
-    oilCost: 190,
-    special: "Tanklara ve kara birliklerine karşı bonus.",
+    stats: { attack: 6, defense: 4, critical: 5, hp: 7, movement: 8, view: 20, capacity: 0, cost: 170, collateral: 1 },
+    defenceBonuses: [],
+    special: "Kısa menzilli hava desteği; kara birliklerine karşı etkilidir.",
     assetFile: "attack_helicopter.png",
   },
   {
     id: "bomber",
     name: "Bombardıman Uçağı",
     domain: "air",
-    attack: 15,
-    defense: 4,
-    speed: 14,
-    productionTurns: 5,
-    goldCost: 1300,
-    steelCost: 380,
-    oilCost: 420,
-    special: "Şehir, fabrika ve yoğun kara birliklerine ağır hasar.",
+    stats: { attack: 6, defense: 6, critical: 5, hp: 7, movement: 15, view: 24, capacity: 0, cost: 160, collateral: 4 },
+    defenceBonuses: [],
+    special: "Uzun menzilli hava desteği ve yüksek collateral hasarı.",
     assetFile: "bomber.png",
   },
   {
     id: "transport_plane",
     name: "Nakliye Uçağı",
     domain: "air",
-    attack: 0,
-    defense: 3,
-    speed: 16,
-    productionTurns: 3,
-    goldCost: 620,
-    steelCost: 210,
-    oilCost: 240,
-    special: "Piyade ve özel kuvvetleri uzun mesafeye taşır.",
+    stats: { attack: 1, defense: 2, critical: 5, hp: 7, movement: 13, view: 24, capacity: 3, cost: 600, collateral: 0 },
+    defenceBonuses: [],
+    special: "Kara birliklerini havadan taşır.",
     assetFile: "transport_plane.png",
   },
   {
     id: "destroyer",
     name: "Destroyer",
     domain: "naval",
-    attack: 9,
-    defense: 8,
-    speed: 9,
-    productionTurns: 4,
-    goldCost: 1050,
-    steelCost: 500,
-    oilCost: 260,
-    special: "Denizaltı tespiti ve filo eskortunda güçlü.",
+    stats: { attack: 8, defense: 6, critical: 5, hp: 7, movement: 11, view: 20, capacity: 0, cost: 220, collateral: 1 },
+    defenceBonuses: [{ against: "Denizaltı", value: 2 }],
+    special: "Hızlı filo eskortu ve denizaltı avcısı.",
     assetFile: "destroyer.png",
+    estimated: true,
   },
   {
     id: "battleship",
     name: "Büyük Savaş Gemisi",
     domain: "naval",
-    attack: 16,
-    defense: 14,
-    speed: 5,
-    productionTurns: 7,
-    goldCost: 2100,
-    steelCost: 1100,
-    oilCost: 520,
-    special: "Ağır deniz ateşi ve kıyı bombardımanı.",
+    stats: { attack: 9, defense: 7, critical: 5, hp: 7, movement: 10, view: 16, capacity: 0, cost: 250, collateral: 2 },
+    defenceBonuses: [{ against: "Bombardıman Uçağı", value: 1 }],
+    special: "Yüksek deniz saldırısı ve kıyı bombardımanı.",
     assetFile: "battleship.png",
   },
   {
     id: "submarine",
     name: "Denizaltı",
     domain: "naval",
-    attack: 12,
-    defense: 5,
-    speed: 7,
-    productionTurns: 5,
-    goldCost: 1250,
-    steelCost: 620,
-    oilCost: 310,
-    special: "Gizlilik ve sürpriz saldırı avantajı.",
+    stats: { attack: 7, defense: 5, critical: 5, hp: 7, movement: 10, view: 16, capacity: 2, cost: 200, collateral: 0 },
+    defenceBonuses: [{ against: "Bombardıman Uçağı", value: 1 }],
+    special: "Gizli yaklaşma ve liman/nakliye hedeflerine sürpriz saldırı.",
     assetFile: "submarine.png",
   },
   {
     id: "support_ship",
     name: "Deniz Nakliye / Destek Gemisi",
     domain: "naval",
-    attack: 2,
-    defense: 6,
-    speed: 6,
-    productionTurns: 4,
-    goldCost: 780,
-    steelCost: 420,
-    oilCost: 210,
-    special: "Kara birliklerini denizden taşır ve filoya lojistik destek verir.",
+    stats: { attack: 1, defense: 2, critical: 5, hp: 7, movement: 10, view: 16, capacity: 10, cost: 250, collateral: 0 },
+    defenceBonuses: [],
+    special: "Kara birliklerini deniz üzerinden taşır.",
     assetFile: "support_ship.png",
   },
 ];
@@ -217,3 +164,7 @@ export const UNIT_DEFINITIONS: UnitDefinition[] = [
 export const UNIT_BY_ID = Object.fromEntries(
   UNIT_DEFINITIONS.map((unit) => [unit.id, unit])
 ) as Record<string, UnitDefinition>;
+
+export function getBaseUnitStats(unitId: string): UnitStats {
+  return UNIT_BY_ID[unitId]?.stats ?? UNIT_DEFINITIONS[0].stats;
+}
