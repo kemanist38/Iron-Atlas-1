@@ -1082,3 +1082,96 @@ input:focus {
     left: 8px;
   }
 }
+
+
+/* v0.9 atWar-like recruitment cities */
+.recruit-city-node {
+  fill: rgba(84, 91, 101, .96);
+  stroke: #d3d7da;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.recruit-capacity-number {
+  fill: #f3f5f7;
+  font-size: 5.7px;
+  font-weight: 900;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: #252c33;
+  stroke-width: 1.2px;
+}
+
+.capital-city-star {
+  fill: #aeb4bb;
+  stroke: #f0f2f4;
+  stroke-width: .7px;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  paint-order: stroke;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.8));
+}
+
+.city-economic-label {
+  pointer-events: none;
+}
+
+.city-economic-label > text:first-child {
+  fill: #c4c8c7;
+  font-size: 6px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(9, 13, 15, .95);
+  stroke-width: 1.7px;
+}
+
+.city-economic-label .city-income {
+  fill: #e0b847;
+  font-size: 5.5px;
+  font-weight: 900;
+  paint-order: stroke;
+  stroke: rgba(9, 13, 15, .98);
+  stroke-width: 1.6px;
+}
+
+.city-economic-label .city-growth {
+  fill: #e4e7e8;
+  font-size: 4.9px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(9, 13, 15, .98);
+  stroke-width: 1.5px;
+}
+
+.recruit-capacity-box {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.recruit-capacity-box > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid #1e3447;
+  border-radius: 4px;
+  background: #07101a;
+  font-size: 9px;
+}
+
+.recruit-capacity-box span {
+  color: #728ba2;
+}
+
+.recruit-capacity-box b {
+  color: #dfb64f;
+}
+
+@media (max-width: 900px) {
+  .recruit-capacity-box {
+    grid-template-columns: 1fr;
+  }
+}
