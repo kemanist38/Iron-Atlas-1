@@ -793,8 +793,17 @@ button:disabled {
   fill: #ffffff;
 }
 
-.city-marker.unreachable-target {
-  opacity: 0.38;
+.city-marker.multi-turn-target .city-node,
+.city-marker.multi-turn-target .capital-ring {
+  fill: rgba(126, 105, 24, 0.96);
+  stroke: #ffd95a !important;
+  stroke-width: 2.6;
+  filter: drop-shadow(0 0 3px rgba(255, 210, 72, 0.72));
+}
+
+.city-marker.multi-turn-target .capacity-number,
+.city-marker.multi-turn-target .capital-star {
+  fill: #fff7cb;
 }
 
 .country-intel {
@@ -1219,4 +1228,23 @@ button:disabled {
   .move-row input {
     width: 62px;
   }
+}
+
+
+.route-eta {
+  pointer-events: none;
+}
+
+.route-eta rect {
+  fill: rgba(8, 14, 17, 0.94);
+  stroke: #d8c857;
+  stroke-width: 1;
+}
+
+.route-eta text {
+  fill: #fff1a4;
+  font-size: 8px;
+  font-weight: 900;
+  text-anchor: middle;
+  dominant-baseline: central;
 }
