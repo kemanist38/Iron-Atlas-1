@@ -661,15 +661,21 @@ export default function App() {
                 : "air";
 
   const transportCapacityIssue =
-    hasLand && hasNaval && selectedSupportShips > 0
-      ? selectedLandCount > seaTransportCapacity
-        ? `Gemi kapasitesi yetersiz: ${selectedLandCount}/${seaTransportCapacity} kara birimi.`
-        : ""
-      : hasLand && hasAir && selectedTransportPlanes > 0
-        ? selectedLandCount > airTransportCapacity
-          ? `Nakliye uçağı kapasitesi yetersiz: ${selectedLandCount}/${airTransportCapacity} kara birimi.`
+    hasLand && hasNaval && !hasAir
+      ? selectedSupportShips <= 0
+        ? "Deniz nakliyesi için en az 1 Destek Gemisi seç."
+        : selectedLandCount > seaTransportCapacity
+          ? `Gemi kapasitesi yetersiz: ${selectedLandCount}/${seaTransportCapacity} kara birimi.`
           : ""
-        : "";
+      : hasLand && hasAir && !hasNaval
+        ? selectedTransportPlanes <= 0
+          ? "Hava nakliyesi için en az 1 Nakliye Uçağı seç."
+          : selectedLandCount > airTransportCapacity
+            ? `Nakliye uçağı kapasitesi yetersiz: ${selectedLandCount}/${airTransportCapacity} kara birimi.`
+            : ""
+        : hasLand && hasAir && hasNaval
+          ? "Kara, hava ve deniz birliklerini tek taşıma grubunda birleştiremezsin."
+          : "";
 
   const transportModeLabel =
     moveSurface === "naval_transport"
