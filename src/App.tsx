@@ -258,7 +258,7 @@ function getRadarStacks(garrison: Record<string, number>): RadarStack[] {
 }
 
 const TERRAIN_MAP_URL =
-  "https://upload.wikimedia.org/wikipedia/commons/d/df/Worldmap_location_NED_50m.svg";
+  "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/51/Blue_Marble_2002.jpg/3840px-Blue_Marble_2002.jpg";
 
 const WORLD_WIDTH = 1000;
 const WORLD_HEIGHT = 500;
@@ -1296,7 +1296,7 @@ export default function App() {
             </div>
 
             <div className="map-attribution">
-              Physical base: Natural Earth
+              Physical base: NASA Blue Marble
             </div>
 
             <div className="map-overlay">
