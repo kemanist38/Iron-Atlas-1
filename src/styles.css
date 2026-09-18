@@ -1248,3 +1248,93 @@ button:disabled {
   text-anchor: middle;
   dominant-baseline: central;
 }
+
+
+/* v2.1 free drag-and-drop army movement */
+.free-move-drag-layer {
+  pointer-events: none;
+}
+
+.draggable-army-token {
+  pointer-events: all;
+  cursor: grab;
+  filter: drop-shadow(0 0 5px rgba(255, 221, 83, 0.75));
+}
+
+.draggable-army-token:active {
+  cursor: grabbing;
+}
+
+.draggable-army-token circle {
+  fill: rgba(28, 31, 19, 0.98);
+  stroke: #ffe15b;
+  stroke-width: 2;
+}
+
+.draggable-army-token path {
+  fill: #ffe15b;
+}
+
+.draggable-army-token text {
+  fill: #fff7c7;
+  stroke: #161812;
+  stroke-width: 1.5px;
+  paint-order: stroke fill;
+  font-size: 8px;
+  font-weight: 900;
+  text-anchor: middle;
+}
+
+.drag-preview-route {
+  stroke: #f2df5d;
+  stroke-width: 1.6;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.drop-preview-marker {
+  pointer-events: none;
+}
+
+.drop-preview-marker circle {
+  fill: rgba(226, 201, 48, 0.22);
+  stroke: #ffe969;
+  stroke-width: 2;
+}
+
+.drop-preview-marker text {
+  fill: #fff7bc;
+  stroke: #15170f;
+  stroke-width: 2px;
+  paint-order: stroke fill;
+  font-size: 7px;
+  font-weight: 900;
+  text-anchor: middle;
+}
+
+.field-army-marker {
+  pointer-events: all;
+  cursor: pointer;
+  filter: drop-shadow(0 0 4px rgba(50, 160, 255, 0.55));
+}
+
+.field-army-marker circle {
+  fill: rgba(8, 22, 32, 0.96);
+  stroke: #58b7ff;
+  stroke-width: 2;
+}
+
+.field-army-marker path {
+  fill: #8fd0ff;
+}
+
+.field-army-marker text {
+  fill: #eaf7ff;
+  stroke: #0a1218;
+  stroke-width: 1.4px;
+  paint-order: stroke fill;
+  font-size: 8px;
+  font-weight: 900;
+  text-anchor: middle;
+}
