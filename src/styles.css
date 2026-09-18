@@ -1581,3 +1581,34 @@ input:focus {
 .map-attribution {
   z-index: 8;
 }
+
+
+/* v1.4 city ownership + capital control */
+.city-owner-atlas .recruit-city-node,
+.city-owner-atlas .capital-city-ring {
+  stroke: #4aa2ff;
+}
+
+.city-owner-dogan .recruit-city-node,
+.city-owner-dogan .capital-city-ring {
+  stroke: #e45d5d;
+}
+
+.city-owner-nova .recruit-city-node,
+.city-owner-nova .capital-city-ring {
+  stroke: #4fd495;
+}
+
+.city-owner-neutral .recruit-city-node,
+.city-owner-neutral .capital-city-ring {
+  stroke: rgba(226, 228, 220, .78);
+}
+
+.selected-country-city .recruit-city-node,
+.selected-country-city .capital-city-ring {
+  stroke-width: 2;
+}
+
+.capital-control-row b {
+  color: #e0b64f;
+}
