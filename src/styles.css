@@ -1425,3 +1425,139 @@ input:focus {
   font-size: 7px;
   pointer-events: none;
 }
+
+
+/* v1.3 satellite terrain visual pass */
+.terrain-base {
+  opacity: 1;
+  pointer-events: none;
+  filter:
+    brightness(.62)
+    contrast(1.12)
+    saturate(.72)
+    sepia(.12)
+    hue-rotate(-4deg);
+}
+
+.map-wrap {
+  background: #183a3d;
+}
+
+.country {
+  opacity: 1;
+  stroke: rgba(235, 239, 232, .34);
+  stroke-width: .65;
+  fill-opacity: .18;
+  mix-blend-mode: normal;
+  filter: none;
+}
+
+.country.owner-neutral {
+  fill: transparent !important;
+  fill-opacity: 0;
+  stroke: rgba(234, 238, 231, .26);
+}
+
+.country.owner-atlas,
+.country.owner-dogan,
+.country.owner-nova {
+  fill-opacity: .22;
+}
+
+.country:hover {
+  fill-opacity: .32;
+  stroke: rgba(255, 255, 255, .82);
+  stroke-width: 1.1;
+  filter: none;
+}
+
+.country.selected {
+  fill-opacity: .26;
+  stroke: #f0eee2;
+  stroke-width: 1.8;
+  filter: drop-shadow(0 0 2px rgba(255,255,255,.35));
+}
+
+/* Recruitment nodes: subdued by default, highlighted only for the selected nation */
+.recruit-city-node {
+  fill: rgba(76, 81, 82, .95);
+  stroke: rgba(225, 226, 218, .92);
+  stroke-width: 1.4;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.7));
+}
+
+.recruit-capacity-number {
+  fill: #f0f0e8;
+  font-size: 6.4px;
+  stroke: rgba(25, 27, 25, .98);
+  stroke-width: 1.5px;
+}
+
+.capital-city-ring {
+  fill: rgba(42, 45, 43, .94);
+  stroke: rgba(232, 232, 222, .95);
+  stroke-width: 1.4;
+}
+
+.capital-city-star {
+  fill: #d9d9cf;
+  stroke: #222622;
+  stroke-width: .7px;
+}
+
+.selected-country-city .recruit-city-node,
+.selected-country-city .capital-city-ring {
+  fill: rgba(90, 77, 44, .98);
+  stroke: #d5b459;
+}
+
+.selected-country-city .recruit-capacity-number {
+  fill: #f6dc89;
+}
+
+.selected-city .recruit-city-node,
+.selected-city .capital-city-ring {
+  stroke: #fff6d0;
+  stroke-width: 2.1;
+  filter: drop-shadow(0 0 4px rgba(232,196,97,.65));
+}
+
+/* Keep labels game-like and restrained */
+.city-economic-label > text:first-child {
+  fill: rgba(235, 234, 221, .94);
+  font-size: 8px;
+  font-weight: 700;
+  stroke: rgba(13, 17, 14, .98);
+  stroke-width: 2.1px;
+}
+
+.city-economic-label .city-income {
+  fill: #d9af49;
+  font-size: 6.8px;
+}
+
+.city-economic-label .city-growth {
+  fill: rgba(229, 232, 224, .92);
+  font-size: 5.8px;
+}
+
+/* Radar blips should read like tactical contacts, not unit cards */
+.radar-blip circle {
+  fill: rgba(12, 20, 21, .92);
+  stroke-width: 1;
+}
+
+.radar-blip image {
+  opacity: .78;
+  filter: grayscale(.25) contrast(1.15);
+}
+
+.map-controls,
+.map-wrap-hint {
+  background: rgba(7, 15, 17, .88);
+  border-color: rgba(160, 177, 174, .28);
+}
+
+.map-attribution {
+  color: rgba(225, 228, 220, .58);
+}
