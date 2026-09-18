@@ -2235,7 +2235,7 @@ export default function App() {
               <div className="unit-scroll movement-list">
                 <p>
                   Önce slider, +/− veya ALL ile birlik miktarını seç.
-                  Miktar seçildiği anda yeşil menzil haritada görünür.
+                  Sonra sürükleme moduna geç; şehir üzerinde çıkan sarı birlik işaretini tutup haritada istediğin yere bırak.
                 </p>
                 {UNIT_DEFINITIONS.filter(
                   (unit) =>
@@ -2346,7 +2346,7 @@ export default function App() {
                   onClick={startMovement}
                 >
                   {moveSelectionCount > 0
-                    ? "HEDEF SEÇ"
+                    ? "SÜRÜKLEME MODUNA GEÇ"
                     : "ÖNCE BİRLİK SEÇ"}
                 </button>
               </div>
