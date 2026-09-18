@@ -512,6 +512,10 @@ export default function App() {
   const [capitalHolds, setCapitalHolds] = useState<
     Record<string, CapitalHold>
   >({});
+  const [homeCountries, setHomeCountries] = useState<
+    Record<string, string>
+  >({});
+  const [winner, setWinner] = useState<string | null>(null);
 
   const [selectedCountry, setSelectedCountry] = useState("TUR");
   const [selectedCityCode, setSelectedCityCode] = useState("");
@@ -910,6 +914,13 @@ export default function App() {
       .slice(0, 2);
     const [doganCountry, novaCountry] = opponents;
 
+    setHomeCountries({
+      [currentPlayer]: countryCode,
+      ...(doganCountry ? { Dogan: doganCountry } : {}),
+      ...(novaCountry ? { Nova: novaCountry } : {}),
+    });
+    setWinner(null);
+
     const nextCountryOwners: Record<string, string | null> = {};
     COUNTRIES.forEach((item) => {
       nextCountryOwners[item.code] = null;
@@ -1162,10 +1173,10 @@ export default function App() {
     if (
       moveSurface === "naval" &&
       sourceCity &&
-      !isCoastalPoint(world, sourceCity.lon, sourceCity.lat)
+      !cityHasPort(sourceCity.code)
     ) {
       setNotice(
-        `${sourceCity.name} kıyı şehri değil. Deniz birimleri yalnızca kıyı/liman şehirlerinden denize çıkabilir.`
+        `${sourceCity.name} liman şehri değil. Deniz birimleri yalnızca liman şehirlerinden denize çıkabilir.`
       );
       return;
     }
@@ -1307,6 +1318,10 @@ export default function App() {
   }
 
   function processTurn() {
+    if (winner) {
+      setNotice("Oyun sona erdi. Yeni oyun başlatabilirsin.");
+      return;
+    }
     if (turn >= maxGameTurns) {
       setNotice("Maksimum oyun turuna ulaşıldı.");
       return;
@@ -1616,6 +1631,42 @@ export default function App() {
       }
     });
 
+    let nextWinner: string | null = null;
+
+    Object.entries(homeCountries).forEach(
+      ([player, countryCode]) => {
+        const hold = nextHolds[countryCode];
+        if (
+          !hold?.holder ||
+          hold.turns < victoryHoldTurns
+        ) {
+          return;
+        }
+
+        if (
+          player === currentPlayer &&
+          hold.holder !== currentPlayer
+        ) {
+          nextWinner = hold.holder;
+        }
+
+        if (
+          player !== currentPlayer &&
+          hold.holder === currentPlayer
+        ) {
+          nextWinner = currentPlayer;
+        }
+      }
+    );
+
+    if (nextWinner) {
+      combatLog.push(
+        nextWinner === currentPlayer
+          ? `ZAFER: düşman anavatan başkenti ${victoryHoldTurns} tur tutuldu.`
+          : `YENİLGİ: anavatan başkentin ${victoryHoldTurns} tur düşman kontrolünde kaldı.`
+      );
+    }
+
     const ownedCities = CITIES.filter(
       (city) =>
         nextCityOwners[city.code] === currentPlayer
@@ -1662,6 +1713,7 @@ export default function App() {
       )
     );
     setTurn(nextTurn);
+    setWinner(nextWinner);
     setLastTurnEvents(combatLog.slice(-8));
 
     setNotice(
@@ -2693,6 +2745,7 @@ export default function App() {
         <button
           className="end-turn-button"
           onClick={processTurn}
+          disabled={Boolean(winner)}
         >
           TURU BİTİR
         </button>
@@ -2700,6 +2753,39 @@ export default function App() {
 
       <main className="game-map-stage">
         {renderWorldMap("game")}
+
+        {winner && (
+          <div className="game-outcome-overlay">
+            <div className="game-outcome-card panel">
+              <span className="kicker">
+                OYUN SONA ERDİ
+              </span>
+              <h1>
+                {winner === currentPlayer
+                  ? "ZAFER"
+                  : "YENİLGİ"}
+              </h1>
+              <p>
+                {winner === currentPlayer
+                  ? "Düşman anavatan başkentini gerekli süre boyunca kontrol altında tuttun."
+                  : `${winner} anavatan başkentini gerekli süre boyunca kontrol etti.`}
+              </p>
+              <button
+                className="primary-button"
+                onClick={() => {
+                  setWinner(null);
+                  setScreen("setup");
+                  setLastTurnEvents([]);
+                  setNotice(
+                    "Yeni oyun ayarlarını seçebilirsin."
+                  );
+                }}
+              >
+                YENİ OYUN
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="map-controls game-map-controls">
           <button onClick={() => setZoom(mapZoom * 1.2)}>
