@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { UNIT_DEFINITIONS } from "./unitData";
+import { UNIT_DEFINITIONS, type UnitDefinition } from "./unitData";
 import { UNIT_ICON_BY_ID } from "./unitIcons";
 
 type Screen = "lobby" | "game";
@@ -27,6 +27,24 @@ type CountryState = {
   resource: string;
 };
 
+type Resources = {
+  gold: number;
+  steel: number;
+  oil: number;
+};
+
+type ProductionOrder = {
+  id: number;
+  countryId: string;
+  cityName: string;
+  unitId: string;
+  unitName: string;
+  quantity: number;
+  readyTurn: number;
+};
+
+type Garrison = Record<string, Record<string, number>>;
+
 const MAP_URL =
   "https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson";
 
@@ -47,6 +65,16 @@ const INITIAL_COUNTRIES: Record<string, CountryState> = {
   JPN: { owner: "Nova", troops: 13, resource: "Teknoloji" },
 };
 
+const INITIAL_GARRISONS: Garrison = {
+  TUR: { infantry: 1000, light_tank: 25, heavy_tank: 50, fighter: 20, attack_helicopter: 10, battleship: 2 },
+  DEU: { infantry: 650, light_tank: 26, fighter: 8 },
+  USA: { infantry: 2200, light_tank: 70, fighter: 34, attack_helicopter: 16, battleship: 6 },
+  RUS: { infantry: 1800, heavy_tank: 72, fighter: 28, attack_helicopter: 18, battleship: 4 },
+  CHN: { infantry: 2100, light_tank: 60, fighter: 26, attack_helicopter: 12, battleship: 3 },
+  FRA: { infantry: 500, light_tank: 22, fighter: 12, battleship: 2 },
+  JPN: { infantry: 700, light_tank: 18, fighter: 18, attack_helicopter: 6, battleship: 4 },
+};
+
 const players = [
   { name: "Atlas", status: "Hazır", color: "#2687e8" },
   { name: "Dogan", status: "Hazır", color: "#d84c4c" },
@@ -63,14 +91,14 @@ const cityNodes = [
   { name: "Tokyo", lon: 139.69, lat: 35.68, code: "JPN", dx: 10, dy: 12 },
 ];
 
-const cityPrimaryUnits: Record<string, { unitId: string; count: number }> = {
-  TUR: { unitId: "heavy_tank", count: 50 },
-  DEU: { unitId: "infantry", count: 650 },
-  RUS: { unitId: "heavy_tank", count: 72 },
-  FRA: { unitId: "infantry", count: 500 },
-  USA: { unitId: "fighter", count: 34 },
-  CHN: { unitId: "light_tank", count: 60 },
-  JPN: { unitId: "fighter", count: 18 },
+const cityPrimaryUnits: Record<string, string> = {
+  TUR: "heavy_tank",
+  DEU: "infantry",
+  RUS: "heavy_tank",
+  FRA: "infantry",
+  USA: "fighter",
+  CHN: "light_tank",
+  JPN: "fighter",
 };
 
 function project([lon, lat]: Position) {
@@ -80,12 +108,14 @@ function project([lon, lat]: Position) {
 }
 
 function ringToPath(ring: Position[]) {
-  return ring
-    .map((point, index) => {
-      const [x, y] = project(point);
-      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
-    })
-    .join(" ") + " Z";
+  return (
+    ring
+      .map((point, index) => {
+        const [x, y] = project(point);
+        return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+      })
+      .join(" ") + " Z"
+  );
 }
 
 function geometryToPath(geometry: GeoGeometry) {
@@ -100,6 +130,33 @@ function geometryToPath(geometry: GeoGeometry) {
     .join(" ");
 }
 
+function getProductionTurns(unit: UnitDefinition) {
+  const base = Math.max(1, Math.ceil(unit.stats.cost / 150));
+  return Math.min(5, base + (unit.domain === "naval" ? 1 : 0));
+}
+
+function getProductionCost(unit: UnitDefinition, quantity: number) {
+  const gold = unit.stats.cost * quantity;
+  const steelRate =
+    unit.domain === "naval" ? 0.6 : unit.domain === "air" ? 0.3 : 0.35;
+
+  const lowOilLandUnits = ["infantry", "militia", "marine", "special_forces"];
+  const oilRate =
+    unit.domain === "air"
+      ? 0.55
+      : unit.domain === "naval"
+        ? 0.35
+        : lowOilLandUnits.includes(unit.id)
+          ? 0.05
+          : 0.25;
+
+  return {
+    gold,
+    steel: Math.ceil(unit.stats.cost * steelRate * quantity),
+    oil: Math.ceil(unit.stats.cost * oilRate * quantity),
+  };
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>("lobby");
   const [commander, setCommander] = useState("Atlas");
@@ -107,6 +164,16 @@ export default function App() {
   const [turn, setTurn] = useState(1);
   const [notice, setNotice] = useState("Komuta ağı çevrimiçi.");
   const [selectedUnitId, setSelectedUnitId] = useState("infantry");
+  const [productionQty, setProductionQty] = useState(1);
+  const [orderSequence, setOrderSequence] = useState(1);
+
+  const [resources, setResources] = useState<Resources>({
+    gold: 1250,
+    steel: 840,
+    oil: 620,
+  });
+  const [productionQueue, setProductionQueue] = useState<ProductionOrder[]>([]);
+  const [garrisons, setGarrisons] = useState<Garrison>(INITIAL_GARRISONS);
 
   const [world, setWorld] = useState<GeoFeature[]>([]);
   const [mapError, setMapError] = useState("");
@@ -148,22 +215,105 @@ export default function App() {
     UNIT_DEFINITIONS.find((unit) => unit.id === selectedUnitId) ??
     UNIT_DEFINITIONS[0];
 
+  const selectedCity = cityNodes.find((city) => city.code === selectedId);
+  const currentPlayer = commander.trim() || "Atlas";
+  const ownsSelectedCountry = selectedState.owner === currentPlayer;
+  const productionTurns = getProductionTurns(selectedUnit);
+  const productionCost = getProductionCost(selectedUnit, productionQty);
+  const selectedGarrison = garrisons[selectedId] ?? {};
+  const selectedUnitCount = selectedGarrison[selectedUnit.id] ?? 0;
+
   function claimSelected() {
     setCountryState((current) => ({
       ...current,
       [selectedId]: {
         ...selectedState,
-        owner: commander || "Atlas",
-        troops:
-          selectedState.owner === commander
-            ? selectedState.troops + 1
-            : 5,
+        owner: currentPlayer,
+        troops: selectedState.owner === currentPlayer ? selectedState.troops + 1 : 5,
       },
     }));
 
+    setNotice(`${selectedName} bölgesi ${currentPlayer} kontrolüne geçti.`);
+  }
+
+  function queueProduction() {
+    if (!selectedCity) {
+      setNotice("Bu ülkede henüz üretim merkezi tanımlı değil.");
+      return;
+    }
+
+    if (!ownsSelectedCountry) {
+      setNotice("Yalnızca kontrol ettiğin ülkelerde üretim yapabilirsin.");
+      return;
+    }
+
+    if (
+      resources.gold < productionCost.gold ||
+      resources.steel < productionCost.steel ||
+      resources.oil < productionCost.oil
+    ) {
+      setNotice("Bu üretim için yeterli kaynağın yok.");
+      return;
+    }
+
+    const readyTurn = turn + productionTurns;
+
+    setResources((current) => ({
+      gold: current.gold - productionCost.gold,
+      steel: current.steel - productionCost.steel,
+      oil: current.oil - productionCost.oil,
+    }));
+
+    setProductionQueue((current) => [
+      ...current,
+      {
+        id: orderSequence,
+        countryId: selectedId,
+        cityName: selectedCity.name,
+        unitId: selectedUnit.id,
+        unitName: selectedUnit.name,
+        quantity: productionQty,
+        readyTurn,
+      },
+    ]);
+
+    setOrderSequence((current) => current + 1);
     setNotice(
-      `${selectedName} bölgesi ${commander || "Atlas"} kontrolüne geçti.`
+      `${selectedCity.name}: ${productionQty} × ${selectedUnit.name} üretime alındı. Tamamlanma: Tur ${readyTurn}.`
     );
+  }
+
+  function advanceTurn() {
+    const nextTurn = turn + 1;
+    const completed = productionQueue.filter((order) => order.readyTurn <= nextTurn);
+    const pending = productionQueue.filter((order) => order.readyTurn > nextTurn);
+
+    if (completed.length > 0) {
+      setGarrisons((current) => {
+        const next = { ...current };
+
+        completed.forEach((order) => {
+          next[order.countryId] = {
+            ...(next[order.countryId] ?? {}),
+            [order.unitId]:
+              (next[order.countryId]?.[order.unitId] ?? 0) + order.quantity,
+          };
+        });
+
+        return next;
+      });
+
+      const completedText = completed
+        .map((order) => `${order.cityName}: +${order.quantity} ${order.unitName}`)
+        .join(" · ");
+
+      setNotice(`Tur ${nextTurn} başladı. Üretim tamamlandı: ${completedText}`);
+    } else {
+      setNotice(`Tur ${nextTurn} başladı. Üretim kuyruğu ilerletildi.`);
+    }
+
+    setProductionQueue(pending);
+    setTurn(nextTurn);
   }
 
   if (screen === "lobby") {
@@ -179,11 +329,11 @@ export default function App() {
 
         <main className="lobby-shell">
           <section className="hero card">
-            <span className="eyebrow">STRATEGY PROTOTYPE • V0.3</span>
+            <span className="eyebrow">STRATEGY PROTOTYPE • V0.7</span>
             <h2>Dünyayı fethet. İttifak kur. Emirlerini aynı anda uygula.</h2>
             <p>
-              Gerçek dünya haritasına ek olarak kara, hava ve deniz birlikleri
-              için ilk dengeleme verisi ve birim kataloğu da eklendi.
+              Dünya haritası, atWar tarzı temel birim istatistikleri ve şehir
+              bazlı üretim kuyruğu aynı prototipte çalışıyor.
             </p>
 
             <div className="form-grid">
@@ -261,15 +411,15 @@ export default function App() {
         </div>
         <div>
           <span>ALTIN</span>
-          <strong>1,250</strong>
+          <strong>{resources.gold.toLocaleString("tr-TR")}</strong>
         </div>
         <div>
           <span>ÇELİK</span>
-          <strong>840</strong>
+          <strong>{resources.steel.toLocaleString("tr-TR")}</strong>
         </div>
         <div>
           <span>PETROL</span>
-          <strong>620</strong>
+          <strong>{resources.oil.toLocaleString("tr-TR")}</strong>
         </div>
         <button className="ghost" onClick={() => setScreen("lobby")}>
           LOBİ
@@ -287,7 +437,7 @@ export default function App() {
                 <i style={{ background: player.color }} />
                 <span>
                   {player.name}
-                  {player.name === commander ? " (Sen)" : ""}
+                  {player.name === currentPlayer ? " (Sen)" : ""}
                 </span>
                 <small>{player.status}</small>
               </div>
@@ -327,7 +477,7 @@ export default function App() {
               <span className="eyebrow">GLOBAL THEATER</span>
               <h3>Gerçek Dünya Operasyon Haritası</h3>
             </div>
-            <span className="map-tip">Bir ülkeye tıkla</span>
+            <span className="map-tip">Ülke / şehir seç → üretim yap</span>
           </div>
 
           <div className="map-wrap">
@@ -343,12 +493,7 @@ export default function App() {
                 aria-label="Iron Atlas gerçek dünya haritası"
               >
                 <defs>
-                  <pattern
-                    id="grid"
-                    width="25"
-                    height="25"
-                    patternUnits="userSpaceOnUse"
-                  >
+                  <pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse">
                     <path
                       d="M 25 0 L 0 0 0 25"
                       fill="none"
@@ -375,14 +520,10 @@ export default function App() {
                       key={id}
                       d={geometryToPath(feature.geometry)}
                       fill={PLAYER_COLORS[owner] ?? PLAYER_COLORS.Neutral}
-                      className={
-                        "country " + (selectedId === id ? "selected" : "")
-                      }
+                      className={"country " + (selectedId === id ? "selected" : "")}
                       onClick={() => {
                         setSelectedId(id);
-                        setNotice(
-                          `${feature.properties?.name ?? id} seçildi.`
-                        );
+                        setNotice(`${feature.properties?.name ?? id} seçildi.`);
                       }}
                     >
                       <title>
@@ -394,8 +535,11 @@ export default function App() {
 
                 {cityNodes.map((city) => {
                   const [x, y] = project([city.lon, city.lat]);
-                  const primary = cityPrimaryUnits[city.code];
-                  const icon = primary ? UNIT_ICON_BY_ID[primary.unitId] : undefined;
+                  const primaryUnitId = cityPrimaryUnits[city.code];
+                  const icon = primaryUnitId ? UNIT_ICON_BY_ID[primaryUnitId] : undefined;
+                  const count = primaryUnitId
+                    ? garrisons[city.code]?.[primaryUnitId] ?? 0
+                    : 0;
 
                   return (
                     <g
@@ -408,7 +552,7 @@ export default function App() {
                         {city.name}
                       </text>
 
-                      {icon && primary && (
+                      {icon && (
                         <g className="map-unit-marker">
                           <rect
                             x={x + city.dx}
@@ -425,11 +569,8 @@ export default function App() {
                             height="18"
                             preserveAspectRatio="xMidYMid meet"
                           />
-                          <text
-                            x={x + city.dx + 27}
-                            y={y + city.dy + 16}
-                          >
-                            {primary.count}
+                          <text x={x + city.dx + 27} y={y + city.dy + 16}>
+                            {count}
                           </text>
                         </g>
                       )}
@@ -445,6 +586,9 @@ export default function App() {
               <small>
                 {selectedState.owner ?? "Tarafsız"} • {selectedState.troops} birlik
               </small>
+              {selectedCity && (
+                <small className="city-center">Üretim merkezi: {selectedCity.name}</small>
+              )}
             </div>
           </div>
         </section>
@@ -474,13 +618,11 @@ export default function App() {
             <span className="eyebrow">SELECTED UNIT</span>
             {UNIT_ICON_BY_ID[selectedUnit.id] && (
               <div className="selected-unit-art">
-                <img
-                  src={UNIT_ICON_BY_ID[selectedUnit.id]}
-                  alt={selectedUnit.name}
-                />
+                <img src={UNIT_ICON_BY_ID[selectedUnit.id]} alt={selectedUnit.name} />
               </div>
             )}
             <h4>{selectedUnit.name}</h4>
+
             <div className="unit-stat-grid atwar-grid">
               <div><span>Saldırı</span><b>{selectedUnit.stats.attack}</b></div>
               <div><span>Defans</span><b>{selectedUnit.stats.defense}</b></div>
@@ -492,7 +634,9 @@ export default function App() {
               <div><span>Maliyet</span><b>{selectedUnit.stats.cost}</b></div>
               <div><span>Collateral</span><b>{selectedUnit.stats.collateral}</b></div>
             </div>
+
             <p>{selectedUnit.special}</p>
+
             {selectedUnit.defenceBonuses.length > 0 && (
               <div className="bonus-box">
                 <span className="eyebrow">DEFENCE BONUS</span>
@@ -504,11 +648,73 @@ export default function App() {
                 ))}
               </div>
             )}
+
             {selectedUnit.estimated && (
               <small className="estimated-note">
                 Bu birimin temel değerleri Iron Atlas dengesi için tahmini olarak ayarlanmıştır.
               </small>
             )}
+          </div>
+
+          <div className="production-panel">
+            <div className="production-head">
+              <div>
+                <span className="eyebrow">PRODUCTION</span>
+                <h4>{selectedCity?.name ?? "Üretim Merkezi Yok"}</h4>
+              </div>
+              <span className={"ownership-pill " + (ownsSelectedCountry ? "owned" : "")}>
+                {ownsSelectedCountry ? "SENİN" : "KİLİTLİ"}
+              </span>
+            </div>
+
+            <div className="garrison-count">
+              <span>Mevcut {selectedUnit.name}</span>
+              <b>{selectedUnitCount.toLocaleString("tr-TR")}</b>
+            </div>
+
+            <div className="qty-row">
+              {[1, 5, 10].map((qty) => (
+                <button
+                  key={qty}
+                  className={productionQty === qty ? "active" : ""}
+                  onClick={() => setProductionQty(qty)}
+                >
+                  ×{qty}
+                </button>
+              ))}
+            </div>
+
+            <div className="production-cost-grid">
+              <div><span>Altın</span><b>{productionCost.gold}</b></div>
+              <div><span>Çelik</span><b>{productionCost.steel}</b></div>
+              <div><span>Petrol</span><b>{productionCost.oil}</b></div>
+              <div><span>Süre</span><b>{productionTurns} tur</b></div>
+            </div>
+
+            <button
+              className="produce-button"
+              disabled={!selectedCity || !ownsSelectedCountry}
+              onClick={queueProduction}
+            >
+              + ÜRETİME AL
+            </button>
+
+            <div className="queue-box">
+              <span className="eyebrow">ÜRETİM KUYRUĞU</span>
+              {productionQueue.length === 0 ? (
+                <small>Kuyruk boş.</small>
+              ) : (
+                productionQueue.map((order) => (
+                  <div className="queue-order" key={order.id}>
+                    <div>
+                      <strong>{order.quantity} × {order.unitName}</strong>
+                      <small>{order.cityName}</small>
+                    </div>
+                    <b>Tur {order.readyTurn}</b>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           <button className="attack" onClick={claimSelected}>
@@ -517,24 +723,14 @@ export default function App() {
 
           <button
             className="secondary"
-            onClick={() =>
-              setNotice(
-                `${selectedName} için hareket emri oluşturuldu.`
-              )
-            }
+            onClick={() => setNotice(`${selectedName} için hareket emri oluşturuldu.`)}
           >
             → HAREKET EMRİ
           </button>
 
           <div className="notice">{notice}</div>
 
-          <button
-            className="end-turn"
-            onClick={() => {
-              setTurn((current) => current + 1);
-              setNotice("Yeni tur başladı.");
-            }}
-          >
+          <button className="end-turn" onClick={advanceTurn}>
             TURU BİTİR
           </button>
         </aside>
