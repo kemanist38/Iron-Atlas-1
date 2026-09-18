@@ -24,7 +24,6 @@ import {
   CITIES,
   COUNTRIES,
   COUNTRY_BY_CODE,
-  citiesForCountry,
   cityHasPort,
   type CityNode,
   type CountryDefinition,
@@ -622,20 +621,6 @@ function mergeArmy(
   return next;
 }
 
-function countryIncome(countryCode: string) {
-  return citiesForCountry(countryCode).reduce(
-    (sum, city) => sum + city.income,
-    0
-  );
-}
-
-function countryGrowth(countryCode: string) {
-  return citiesForCountry(countryCode).reduce(
-    (sum, city) => sum + city.growth,
-    0
-  );
-}
-
 function startingGarrison(city: CityNode) {
   const base: Record<string, number> = city.isCapital
     ? {
@@ -790,6 +775,7 @@ export default function App() {
       const code = featureCountryCode(feature);
       if (
         !/^[A-Z]{3}$/.test(code) ||
+        code === "ATA" ||
         COUNTRY_BY_CODE[code]
       ) {
         return;
@@ -1198,7 +1184,7 @@ export default function App() {
     moveSelectionCount,
   ]);
 
-  const playerCountries = COUNTRIES.filter(
+  const playerCountries = allCountries.filter(
     (country) => countryOwners[country.code] === currentPlayer
   );
 
@@ -2524,10 +2510,6 @@ export default function App() {
                   inTargetMode &&
                   !isSameSourceCity &&
                   targetDistance > activeMoveRangeKm;
-                const showLabel =
-                  mapZoom >= 1.35 ||
-                  isSelected ||
-                  city.isCapital;
                 return (
                   <g
                     key={city.code + "-" + offset}
@@ -2573,19 +2555,6 @@ export default function App() {
                       <text className="port-marker" x="8" y="8">
                         ⚓
                       </text>
-                    )}
-                    {showLabel && (
-                      <g className="city-label">
-                        <text y="-11">{city.name}</text>
-                        {mapZoom >= 1.65 && (
-                          <text
-                            y="-3"
-                            className="city-economy"
-                          >
-                            {city.income} (+{city.growth})
-                          </text>
-                        )}
-                      </g>
                     )}
                   </g>
                 );
