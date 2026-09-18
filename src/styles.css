@@ -1416,3 +1416,53 @@ button:disabled {
 .field-army-window .movement-list {
   max-height: 430px;
 }
+
+
+.port-marker {
+  fill: #d8edf6;
+  stroke: #071016;
+  stroke-width: 1.2px;
+  paint-order: stroke fill;
+  font-size: 8px;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.port-required {
+  color: #d2b861 !important;
+  font-size: 8px !important;
+}
+
+.turn-report {
+  position: absolute;
+  left: 18px;
+  bottom: 48px;
+  z-index: 28;
+  width: min(420px, calc(100% - 36px));
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-color: rgba(178, 157, 35, 0.42);
+  background: rgba(5, 12, 16, 0.93);
+}
+
+.turn-report-title {
+  margin-bottom: 6px;
+  color: #d7c84f;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.turn-report-event {
+  padding: 5px 0;
+  border-top: 1px solid rgba(139, 163, 172, 0.13);
+  color: #c7d3d8;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.unit-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
