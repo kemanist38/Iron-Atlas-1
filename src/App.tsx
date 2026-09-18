@@ -218,15 +218,44 @@ const cityNodes: CityNode[] = [
   { code: "AUS-BNE", countryCode: "AUS", name: "Brisbane", lon: 153.03, lat: -27.47, isCapital: false, recruitCapacity: 1, income: 540, growth: 37, dx: 8, dy: 12 },
 ];
 
-const cityPrimaryUnits: Record<string, string> = {
-  "TUR-ANK": "heavy_tank",
-  "DEU-BER": "infantry",
-  "USA-WAS": "fighter",
-  "RUS-MOW": "heavy_tank",
-  "CHN-BJS": "light_tank",
-  "FRA-PAR": "infantry",
-  "JPN-TYO": "fighter",
+
+
+type RadarStack = {
+  kind: "infantry" | "tank" | "air" | "naval";
+  iconId: string;
+  count: number;
 };
+
+function getRadarStacks(garrison: Record<string, number>): RadarStack[] {
+  const infantry =
+    (garrison.infantry ?? 0) +
+    (garrison.militia ?? 0) +
+    (garrison.special_forces ?? 0) +
+    (garrison.marine ?? 0);
+
+  const tanks =
+    (garrison.light_tank ?? 0) +
+    (garrison.heavy_tank ?? 0);
+
+  const air =
+    (garrison.fighter ?? 0) +
+    (garrison.attack_helicopter ?? 0) +
+    (garrison.bomber ?? 0) +
+    (garrison.transport_plane ?? 0);
+
+  const naval =
+    (garrison.destroyer ?? 0) +
+    (garrison.battleship ?? 0) +
+    (garrison.submarine ?? 0) +
+    (garrison.support_ship ?? 0);
+
+  return [
+    { kind: "infantry", iconId: "infantry", count: infantry },
+    { kind: "tank", iconId: "heavy_tank", count: tanks },
+    { kind: "air", iconId: "fighter", count: air },
+    { kind: "naval", iconId: "battleship", count: naval },
+  ].filter((stack) => stack.count > 0);
+}
 
 const WORLD_WIDTH = 1000;
 const WORLD_HEIGHT = 500;
@@ -1062,24 +1091,43 @@ export default function App() {
 
                     {cityNodes.map((city) => {
                       const [x, y] = project([city.lon, city.lat]);
-                      const primaryUnitId = cityPrimaryUnits[city.code];
-                      const icon = primaryUnitId
-                        ? UNIT_ICON_BY_ID[primaryUnitId]
-                        : undefined;
-                      const count = primaryUnitId
-                        ? garrisons[city.code]?.[primaryUnitId] ?? 0
-                        : 0;
+                      const cityGarrison = garrisons[city.code] ?? {};
+                      const radarStacks = getRadarStacks(cityGarrison);
+                      const isSelectedCity = selectedCityId === city.code;
+
+                      const showCityName =
+                        isSelectedCity ||
+                        mapZoom >= 2.6 ||
+                        (city.isCapital && mapZoom >= 1.55);
+
+                      const showEconomicDetail =
+                        (isSelectedCity && mapZoom >= 1.8) ||
+                        (city.isCapital && mapZoom >= 3.4);
+
+                      const showRadar =
+                        radarStacks.length > 0 &&
+                        (isSelectedCity || mapZoom >= 1.95);
+
+                      const showRadarCount =
+                        isSelectedCity || mapZoom >= 3.15;
 
                       return (
                         <g
-                          className="city"
-                          key={city.name}
-                          onClick={() => handleCityClick(city)}
+                          className={
+                            "city city-fixed-marker " +
+                            (isSelectedCity ? "selected-city" : "")
+                          }
+                          key={city.code}
+                          transform={`translate(${x} ${y}) scale(${1 / mapZoom})`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleCityClick(city);
+                          }}
                         >
                           {city.isCapital ? (
                             <text
-                              x={x}
-                              y={y + 4}
+                              x="0"
+                              y="4"
                               className="capital-city-star"
                               textAnchor="middle"
                             >
@@ -1088,14 +1136,14 @@ export default function App() {
                           ) : (
                             <>
                               <circle
-                                cx={x}
-                                cy={y}
+                                cx="0"
+                                cy="0"
                                 r="6"
                                 className="recruit-city-node"
                               />
                               <text
-                                x={x}
-                                y={y + 2.5}
+                                x="0"
+                                y="2.5"
                                 className="recruit-capacity-number"
                                 textAnchor="middle"
                               >
@@ -1104,24 +1152,31 @@ export default function App() {
                             </>
                           )}
 
-                          {mapZoom >= 1.25 && (
+                          {showCityName && (
                             <g className="city-economic-label">
-                              <text x={x + 7} y={y - 6}>
+                              <text
+                                x={city.dx >= 0 ? 9 : -9}
+                                y={city.dy < 0 ? -10 : 14}
+                                textAnchor={city.dx >= 0 ? "start" : "end"}
+                              >
                                 {city.name}
                               </text>
-                              {mapZoom >= 1.65 && (
+
+                              {showEconomicDetail && (
                                 <>
                                   <text
-                                    x={x + 7}
-                                    y={y + 4}
+                                    x={city.dx >= 0 ? 9 : -9}
+                                    y={city.dy < 0 ? 0 : 24}
                                     className="city-income"
+                                    textAnchor={city.dx >= 0 ? "start" : "end"}
                                   >
                                     {city.income}
                                   </text>
                                   <text
-                                    x={x + 7}
-                                    y={y + 13}
+                                    x={city.dx >= 0 ? 9 : -9}
+                                    y={city.dy < 0 ? 9 : 33}
                                     className="city-growth"
+                                    textAnchor={city.dx >= 0 ? "start" : "end"}
                                   >
                                     (+{city.growth})
                                   </text>
@@ -1130,34 +1185,51 @@ export default function App() {
                             </g>
                           )}
 
-                          {icon && (
-                            <g className="map-unit-marker">
-                              <rect
-                                x={x + city.dx}
-                                y={y + city.dy}
-                                width="36"
-                                height="24"
-                                rx="5"
-                              />
-                              <image
-                                href={icon}
-                                x={x + city.dx + 2}
-                                y={y + city.dy + 2}
-                                width="18"
-                                height="18"
-                                preserveAspectRatio="xMidYMid meet"
-                              />
-                              <text
-                                x={x + city.dx + 27}
-                                y={y + city.dy + 16}
-                              >
-                                {count}
-                              </text>
+                          {showRadar && (
+                            <g
+                              className="radar-stack-row"
+                              transform="translate(10 -2)"
+                            >
+                              {radarStacks.map((stack, index) => {
+                                const icon = UNIT_ICON_BY_ID[stack.iconId];
+                                const offsetX = index * 18;
+
+                                return (
+                                  <g
+                                    className={"radar-blip radar-" + stack.kind}
+                                    key={stack.kind}
+                                    transform={`translate(${offsetX} 0)`}
+                                  >
+                                    <circle cx="0" cy="0" r="6.5" />
+                                    {icon && (
+                                      <image
+                                        href={icon}
+                                        x="-5"
+                                        y="-5"
+                                        width="10"
+                                        height="10"
+                                        preserveAspectRatio="xMidYMid meet"
+                                      />
+                                    )}
+                                    {showRadarCount && (
+                                      <text
+                                        x="0"
+                                        y="12"
+                                        textAnchor="middle"
+                                        className="radar-count"
+                                      >
+                                        {stack.count}
+                                      </text>
+                                    )}
+                                  </g>
+                                );
+                              })}
                             </g>
                           )}
                         </g>
                       );
                     })}
+
                   </g>
                 ))}
               </svg>
