@@ -2453,3 +2453,326 @@ input:focus {
   fill-opacity: .10;
   stroke: rgba(223, 214, 185, .55);
 }
+
+
+/* v1.8 new-game setup inspired by classic browser strategy flows */
+.setup-screen {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, #0a0f11 0, #111815 145px, #20291d 145px, #182015 100%);
+}
+
+.setup-brandbar {
+  border-bottom: 1px solid #263129;
+}
+
+.setup-shell {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 14px;
+  width: min(1440px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 18px 0 28px;
+}
+
+.setup-map-preview,
+.setup-config {
+  min-height: 610px;
+}
+
+.setup-map-preview {
+  padding: 14px;
+}
+
+.setup-map-image {
+  height: 205px;
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid #31412f;
+  border-radius: 4px;
+  background: #0d1919;
+}
+
+.setup-map-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: brightness(.72) saturate(.78) contrast(1.08);
+}
+
+.setup-map-select {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+  color: #7f9486;
+  font-size: 9px;
+  letter-spacing: .08em;
+}
+
+.setup-map-select select {
+  height: 34px;
+}
+
+.setup-color-section {
+  margin-top: 16px;
+  padding-top: 13px;
+  border-top: 1px dashed #334235;
+}
+
+.setup-color-section > span {
+  display: block;
+  margin-bottom: 8px;
+  color: #9da995;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.setup-color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+}
+
+.setup-color-grid button {
+  height: 25px;
+  border: 2px solid rgba(0,0,0,.75);
+  border-radius: 3px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.12);
+}
+
+.setup-color-grid button.selected {
+  outline: 2px solid #f3d74e;
+  outline-offset: 1px;
+}
+
+.setup-config {
+  position: relative;
+  padding: 0 0 70px;
+  overflow: hidden;
+}
+
+.setup-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 0 14px;
+  border-bottom: 1px solid #2c3b2d;
+  background: rgba(12, 17, 13, .5);
+}
+
+.setup-tabs button {
+  min-width: 96px;
+  padding: 12px 13px 10px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #879681;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.setup-tabs button.active {
+  border-bottom-color: #bdb51f;
+  background: #313a24;
+  color: #eef0d9;
+}
+
+.setup-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+  max-width: 780px;
+  margin: 30px auto 0;
+  padding: 0 26px;
+}
+
+.setup-form label {
+  display: grid;
+  grid-template-columns: 1fr 180px;
+  align-items: center;
+  gap: 12px;
+  color: #c0c7bb;
+  font-size: 11px;
+}
+
+.setup-form input,
+.setup-form select {
+  height: 34px;
+}
+
+.setup-strategy-note,
+.setup-rule-card {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid #3b432c;
+  border-radius: 4px;
+  background: rgba(8, 12, 9, .65);
+}
+
+.setup-strategy-note strong,
+.setup-rule-card strong {
+  color: #d9d358;
+  font-size: 12px;
+}
+
+.setup-strategy-note span,
+.setup-rule-card span {
+  color: #8f9b8b;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.setup-check {
+  grid-template-columns: 20px 1fr !important;
+  justify-self: start;
+}
+
+.setup-check input {
+  width: 15px;
+  height: 15px;
+}
+
+.setup-summary {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 52px;
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  padding: 9px 12px;
+  border-top: 1px solid #2b392c;
+  color: #859183;
+  font-size: 9px;
+}
+
+.setup-summary b {
+  color: #d9ddcf;
+}
+
+.setup-summary i {
+  display: inline-block;
+  width: 22px;
+  height: 12px;
+  margin-left: 5px;
+  border: 1px solid #d4d0a0;
+  vertical-align: middle;
+}
+
+.setup-continue {
+  position: absolute;
+  right: 14px;
+  bottom: 10px;
+  width: 250px;
+  min-height: 34px;
+}
+
+.homeland-strategy-summary {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 10px;
+  padding: 9px;
+  border: 1px solid rgba(190, 168, 69, .18);
+  background: rgba(12, 12, 8, .7);
+}
+
+.homeland-strategy-summary > span {
+  color: #a29e84;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.homeland-strategy-summary b {
+  color: #ddd265;
+  font-size: 11px;
+}
+
+.homeland-strategy-summary small {
+  color: #8e9488;
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.purchase-city-list {
+  max-height: 128px;
+  margin: 10px 0 2px;
+  overflow-y: auto;
+  border: 1px solid rgba(168, 156, 96, .18);
+  background: rgba(9, 10, 8, .65);
+}
+
+.purchase-city-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 7px;
+  border-bottom: 1px solid rgba(168, 156, 96, .10);
+  color: #bcbdae;
+  font-size: 9px;
+}
+
+.purchase-city-list > div:last-child {
+  border-bottom: 0;
+}
+
+.purchase-city-list b {
+  color: #e2c54c;
+}
+
+.city-owner-current .recruit-city-node,
+.city-owner-current .capital-city-ring {
+  stroke: currentColor;
+}
+
+.city-owner-current .capital-city-star {
+  fill: currentColor;
+}
+
+.game-strategy-label {
+  display: block;
+  margin-top: 1px;
+  color: #8ba09b;
+  font-size: 7px;
+  font-weight: 500;
+}
+
+@media (max-width: 960px) {
+  .setup-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .setup-map-preview,
+  .setup-config {
+    min-height: auto;
+  }
+
+  .setup-config {
+    padding-bottom: 92px;
+  }
+}
+
+@media (max-width: 640px) {
+  .setup-form {
+    grid-template-columns: 1fr;
+    padding: 0 14px;
+  }
+
+  .setup-form label {
+    grid-template-columns: 1fr;
+  }
+
+  .setup-summary {
+    flex-wrap: wrap;
+  }
+
+  .setup-continue {
+    left: 14px;
+    right: 14px;
+    width: auto;
+  }
+}
