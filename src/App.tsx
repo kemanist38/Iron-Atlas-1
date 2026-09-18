@@ -1054,6 +1054,8 @@ export default function App() {
       return;
     }
 
+    if (quantity <= 0) return;
+
     if (unit.domain === "naval" && !cityHasPort(city.code)) {
       setNotice(
         `${city.name} şehrinde liman yok. Deniz birlikleri yalnızca liman şehirlerinde üretilebilir.`
@@ -1061,20 +1063,9 @@ export default function App() {
       return;
     }
 
-    const activeOrders = productionQueue.filter(
-      (order) =>
-        order.cityCode === city.code &&
-        order.readyTurn > turn
-    ).length;
-    if (activeOrders >= city.recruitCapacity) {
-      setNotice(
-        `${city.name} üretim kapasitesi dolu (${activeOrders}/${city.recruitCapacity}).`
-      );
-      return;
-    }
-
     const unitWithStrategy = effectiveUnit(unit);
     const cost = productionCost(unitWithStrategy, quantity);
+
     if (
       resources.gold < cost.gold ||
       resources.steel < cost.steel ||
@@ -1084,29 +1075,25 @@ export default function App() {
       return;
     }
 
-    const readyTurn =
-      turn + productionTurns(unitWithStrategy);
     setResources((current) => ({
       gold: current.gold - cost.gold,
       steel: current.steel - cost.steel,
       oil: current.oil - cost.oil,
     }));
-    setProductionQueue((current) => [
+
+    setGarrisons((current) => ({
       ...current,
-      {
-        id: orderIdRef.current++,
-        player: currentPlayer,
-        cityCode: city.code,
-        unitId: unit.id,
-        quantity,
-        readyTurn,
+      [city.code]: {
+        ...(current[city.code] ?? {}),
+        [unit.id]:
+          (current[city.code]?.[unit.id] ?? 0) + quantity,
       },
-    ]);
+    }));
+
     setNotice(
-      `${city.name}: ${quantity} × ${unit.name} üretime alındı (Tur ${readyTurn}).`
+      `${city.name}: ${quantity} × ${unit.name} anında üretildi. Aynı tur içinde BİRLİK TAŞI bölümünden kullanabilirsin.`
     );
   }
-
 
   function handleCityClick(city: CityNode) {
     if (moveSourceCode || moveSourceArmyId) {
