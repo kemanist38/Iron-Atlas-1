@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { UNIT_DEFINITIONS, type UnitDefinition } from "./unitData";
 import { UNIT_ICON_BY_ID } from "./unitIcons";
 
@@ -114,6 +114,28 @@ const cityPrimaryUnits: Record<string, string> = {
   JPN: "fighter",
 };
 
+const WORLD_WIDTH = 1000;
+const WORLD_HEIGHT = 500;
+const WORLD_COPIES = [-WORLD_WIDTH, 0, WORLD_WIDTH];
+
+function wrapWorldX(value: number) {
+  return ((value % WORLD_WIDTH) + WORLD_WIDTH) % WORLD_WIDTH;
+}
+
+function shortestWrappedTargetX(sourceX: number, targetX: number) {
+  const options = [
+    targetX - WORLD_WIDTH,
+    targetX,
+    targetX + WORLD_WIDTH,
+  ];
+
+  return options.reduce((best, candidate) =>
+    Math.abs(candidate - sourceX) < Math.abs(best - sourceX)
+      ? candidate
+      : best
+  );
+}
+
 function project([lon, lat]: Position) {
   const x = ((lon + 180) / 360) * 1000;
   const y = ((90 - lat) / 180) * 500;
@@ -218,6 +240,15 @@ export default function App() {
   const [moveSourceCode, setMoveSourceCode] = useState<string | null>(null);
   const [orderSequence, setOrderSequence] = useState(1);
 
+  const [mapZoom, setMapZoom] = useState(1);
+  const [mapCenter, setMapCenter] = useState({ x: 500, y: 250 });
+  const mapDragRef = useRef<{
+    pointerX: number;
+    pointerY: number;
+    centerX: number;
+    centerY: number;
+  } | null>(null);
+
   const [resources, setResources] = useState<Resources>({
     gold: 1250,
     steel: 840,
@@ -274,6 +305,81 @@ export default function App() {
   const productionCost = getProductionCost(selectedUnit, productionQty);
   const selectedGarrison = garrisons[selectedId] ?? {};
   const selectedUnitCount = selectedGarrison[selectedUnit.id] ?? 0;
+
+  const mapViewWidth = WORLD_WIDTH / mapZoom;
+  const mapViewHeight = WORLD_HEIGHT / mapZoom;
+  const mapViewBox = [
+    mapCenter.x - mapViewWidth / 2,
+    mapCenter.y - mapViewHeight / 2,
+    mapViewWidth,
+    mapViewHeight,
+  ].join(" ");
+
+  function changeMapZoom(nextZoom: number) {
+    const zoom = Math.min(5, Math.max(1, nextZoom));
+    setMapZoom(zoom);
+    setMapCenter((current) => ({
+      x: wrapWorldX(current.x),
+      y: Math.min(
+        WORLD_HEIGHT - WORLD_HEIGHT / zoom / 2,
+        Math.max(WORLD_HEIGHT / zoom / 2, current.y)
+      ),
+    }));
+  }
+
+  function resetMapCamera() {
+    setMapZoom(1);
+    setMapCenter({ x: 500, y: 250 });
+  }
+
+  function handleMapPointerDown(event: React.PointerEvent<SVGSVGElement>) {
+    if (event.button !== 0) return;
+
+    mapDragRef.current = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      centerX: mapCenter.x,
+      centerY: mapCenter.y,
+    };
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleMapPointerMove(event: React.PointerEvent<SVGSVGElement>) {
+    const drag = mapDragRef.current;
+    if (!drag) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const dx =
+      ((event.clientX - drag.pointerX) / Math.max(1, rect.width)) *
+      mapViewWidth;
+    const dy =
+      ((event.clientY - drag.pointerY) / Math.max(1, rect.height)) *
+      mapViewHeight;
+
+    const halfHeight = mapViewHeight / 2;
+
+    setMapCenter({
+      x: wrapWorldX(drag.centerX - dx),
+      y: Math.min(
+        WORLD_HEIGHT - halfHeight,
+        Math.max(halfHeight, drag.centerY - dy)
+      ),
+    });
+  }
+
+  function handleMapPointerUp(event: React.PointerEvent<SVGSVGElement>) {
+    mapDragRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function handleMapWheel(event: React.WheelEvent<SVGSVGElement>) {
+    event.preventDefault();
+    changeMapZoom(mapZoom * (event.deltaY < 0 ? 1.2 : 1 / 1.2));
+  }
 
   function queueProduction() {
     if (!selectedCity) {
@@ -714,10 +820,15 @@ export default function App() {
               <div className="map-loading">Dünya haritası yükleniyor...</div>
             ) : (
               <svg
-                viewBox="0 0 1000 500"
+                viewBox={mapViewBox}
                 className="world-map"
                 role="img"
                 aria-label="Iron Atlas gerçek dünya haritası"
+                onPointerDown={handleMapPointerDown}
+                onPointerMove={handleMapPointerMove}
+                onPointerUp={handleMapPointerUp}
+                onPointerCancel={handleMapPointerUp}
+                onWheel={handleMapWheel}
               >
                 <defs>
                   <pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse">
@@ -730,104 +841,163 @@ export default function App() {
                   </pattern>
                 </defs>
 
-                <rect width="1000" height="500" fill="url(#grid)" />
+                <rect
+                  x={-WORLD_WIDTH}
+                  y="0"
+                  width={WORLD_WIDTH * 3}
+                  height={WORLD_HEIGHT}
+                  fill="url(#grid)"
+                  className="map-drag-surface"
+                />
 
-                {world.map((feature, index) => {
-                  const id = String(feature.id ?? `country-${index}`);
-                  const state =
-                    countryState[id] ?? {
-                      owner: null,
-                      troops: 5,
-                      resource: "Gıda",
-                    };
-                  const owner = state.owner ?? "Neutral";
+                {WORLD_COPIES.map((worldOffset) => (
+                  <g
+                    key={worldOffset}
+                    transform={`translate(${worldOffset} 0)`}
+                  >
+                    {world.map((feature, index) => {
+                      const id = String(feature.id ?? `country-${index}`);
+                      const state =
+                        countryState[id] ?? {
+                          owner: null,
+                          troops: 5,
+                          resource: "Gıda",
+                        };
+                      const owner = state.owner ?? "Neutral";
 
-                  return (
-                    <path
-                      key={id}
-                      d={geometryToPath(feature.geometry)}
-                      fill={PLAYER_COLORS[owner] ?? PLAYER_COLORS.Neutral}
-                      className={"country " + (selectedId === id ? "selected" : "")}
-                      onClick={() => {
-                        setSelectedId(id);
-                        setNotice(`${feature.properties?.name ?? id} seçildi.`);
-                      }}
-                    >
-                      <title>
-                        {feature.properties?.name ?? id} • {state.troops} birlik
-                      </title>
-                    </path>
-                  );
-                })}
+                      return (
+                        <path
+                          key={id}
+                          d={geometryToPath(feature.geometry)}
+                          fill={
+                            PLAYER_COLORS[owner] ?? PLAYER_COLORS.Neutral
+                          }
+                          className={
+                            "country " +
+                            (selectedId === id ? "selected" : "")
+                          }
+                          onClick={() => {
+                            setSelectedId(id);
+                            setNotice(
+                              `${feature.properties?.name ?? id} seçildi.`
+                            );
+                          }}
+                        >
+                          <title>
+                            {feature.properties?.name ?? id} • {state.troops} birlik
+                          </title>
+                        </path>
+                      );
+                    })}
 
-                {movementQueue.map((order) => {
-                  const from = cityNodes.find((city) => city.code === order.fromCode);
-                  const to = cityNodes.find((city) => city.code === order.toCode);
-                  if (!from || !to) return null;
+                    {movementQueue.map((order) => {
+                      const from = cityNodes.find(
+                        (city) => city.code === order.fromCode
+                      );
+                      const to = cityNodes.find(
+                        (city) => city.code === order.toCode
+                      );
 
-                  const [x1, y1] = project([from.lon, from.lat]);
-                  const [x2, y2] = project([to.lon, to.lat]);
+                      if (!from || !to) return null;
 
-                  return (
-                    <g
-                      className={
-                        "movement-route " +
-                        (order.kind === "attack" ? "attack-route" : "")
-                      }
-                      key={order.id}
-                    >
-                      <line x1={x1} y1={y1} x2={x2} y2={y2} />
-                      <circle cx={x2} cy={y2} r="5" />
-                    </g>
-                  );
-                })}
+                      const [x1, y1] = project([from.lon, from.lat]);
+                      const [rawX2, y2] = project([to.lon, to.lat]);
+                      const x2 = shortestWrappedTargetX(x1, rawX2);
 
-                {cityNodes.map((city) => {
-                  const [x, y] = project([city.lon, city.lat]);
-                  const primaryUnitId = cityPrimaryUnits[city.code];
-                  const icon = primaryUnitId ? UNIT_ICON_BY_ID[primaryUnitId] : undefined;
-                  const count = primaryUnitId
-                    ? garrisons[city.code]?.[primaryUnitId] ?? 0
-                    : 0;
-
-                  return (
-                    <g
-                      className="city"
-                      key={city.name}
-                      onClick={() => handleCityClick(city)}
-                    >
-                      <circle cx={x} cy={y} r="3.7" />
-                      <text x={x + 6} y={y - 5}>
-                        {city.name}
-                      </text>
-
-                      {icon && (
-                        <g className="map-unit-marker">
-                          <rect
-                            x={x + city.dx}
-                            y={y + city.dy}
-                            width="36"
-                            height="24"
-                            rx="5"
-                          />
-                          <image
-                            href={icon}
-                            x={x + city.dx + 2}
-                            y={y + city.dy + 2}
-                            width="18"
-                            height="18"
-                            preserveAspectRatio="xMidYMid meet"
-                          />
-                          <text x={x + city.dx + 27} y={y + city.dy + 16}>
-                            {count}
-                          </text>
+                      return (
+                        <g
+                          className={
+                            "movement-route " +
+                            (order.kind === "attack" ? "attack-route" : "")
+                          }
+                          key={order.id}
+                        >
+                          <line x1={x1} y1={y1} x2={x2} y2={y2} />
+                          <circle cx={x2} cy={y2} r="5" />
                         </g>
-                      )}
-                    </g>
-                  );
-                })}
+                      );
+                    })}
+
+                    {cityNodes.map((city) => {
+                      const [x, y] = project([city.lon, city.lat]);
+                      const primaryUnitId = cityPrimaryUnits[city.code];
+                      const icon = primaryUnitId
+                        ? UNIT_ICON_BY_ID[primaryUnitId]
+                        : undefined;
+                      const count = primaryUnitId
+                        ? garrisons[city.code]?.[primaryUnitId] ?? 0
+                        : 0;
+
+                      return (
+                        <g
+                          className="city"
+                          key={city.name}
+                          onClick={() => handleCityClick(city)}
+                        >
+                          <circle cx={x} cy={y} r="3.7" />
+                          <text x={x + 6} y={y - 5}>
+                            {city.name}
+                          </text>
+
+                          {icon && (
+                            <g className="map-unit-marker">
+                              <rect
+                                x={x + city.dx}
+                                y={y + city.dy}
+                                width="36"
+                                height="24"
+                                rx="5"
+                              />
+                              <image
+                                href={icon}
+                                x={x + city.dx + 2}
+                                y={y + city.dy + 2}
+                                width="18"
+                                height="18"
+                                preserveAspectRatio="xMidYMid meet"
+                              />
+                              <text
+                                x={x + city.dx + 27}
+                                y={y + city.dy + 16}
+                              >
+                                {count}
+                              </text>
+                            </g>
+                          )}
+                        </g>
+                      );
+                    })}
+                  </g>
+                ))}
               </svg>
             )}
+
+            <div className="map-controls">
+              <button
+                onClick={() => changeMapZoom(mapZoom * 1.3)}
+                title="Yakınlaştır"
+              >
+                +
+              </button>
+              <span>{Math.round(mapZoom * 100)}%</span>
+              <button
+                onClick={() => changeMapZoom(mapZoom / 1.3)}
+                title="Uzaklaştır"
+              >
+                −
+              </button>
+              <button
+                className="reset-camera"
+                onClick={resetMapCamera}
+                title="Dünya görünümüne dön"
+              >
+                ⟳
+              </button>
+            </div>
+
+            <div className="map-wrap-hint">
+              Tekerlek: zoom · Tutup sürükle: haritayı kaydır · Dünya yatayda sonsuz döner
+            </div>
 
             <div className="map-overlay">
               <span>SEÇİLİ ÜLKE</span>
