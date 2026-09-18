@@ -782,8 +782,135 @@ export default function App() {
       });
   }, []);
 
+  const generatedWorldData = useMemo(() => {
+    const extraCountries: CountryDefinition[] = [];
+    const extraCities: CityNode[] = [];
+
+    world.forEach((feature) => {
+      const code = featureCountryCode(feature);
+      if (
+        !/^[A-Z]{3}$/.test(code) ||
+        COUNTRY_BY_CODE[code]
+      ) {
+        return;
+      }
+
+      const name =
+        feature.properties?.name?.trim() || code;
+      const [centerLon, centerLat] =
+        geometryRepresentativePoint(feature.geometry);
+      const bounds = geometryBounds(feature.geometry);
+      const lonSpan = Math.max(
+        0.2,
+        Math.min(
+          80,
+          Math.abs(bounds.maxLon - bounds.minLon)
+        )
+      );
+      const latSpan = Math.max(
+        0.2,
+        Math.abs(bounds.maxLat - bounds.minLat)
+      );
+      const sizeScore =
+        lonSpan *
+        latSpan *
+        Math.max(
+          0.25,
+          Math.cos((centerLat * Math.PI) / 180)
+        );
+
+      const cityCount =
+        sizeScore > 700
+          ? 5
+          : sizeScore > 220
+            ? 4
+            : sizeScore > 70
+              ? 3
+              : sizeScore > 12
+                ? 2
+                : 1;
+
+      const purchasePrice =
+        900 +
+        cityCount * 650 +
+        Math.min(1800, Math.round(sizeScore * 1.8));
+
+      extraCountries.push({
+        code,
+        name,
+        region: generatedRegion(centerLon, centerLat),
+        purchasePrice,
+        primaryResource: generatedResource(code),
+      });
+
+      const cityPoints = generatedCityPoints(
+        feature.geometry,
+        cityCount
+      );
+      const directionNames = [
+        "Başkent",
+        "Kuzey Bölgesi",
+        "Güney Bölgesi",
+        "Batı Bölgesi",
+        "Doğu Bölgesi",
+      ];
+
+      cityPoints.forEach(([lon, lat], index) => {
+        const isCapital = index === 0;
+        const capacity = isCapital
+          ? cityCount >= 4
+            ? 3
+            : 2
+          : cityCount >= 5 && index === 1
+            ? 2
+            : 1;
+        extraCities.push({
+          code: `${code}-AUTO${index + 1}`,
+          countryCode: code,
+          name: isCapital
+            ? `${name} Başkent`
+            : `${name} ${directionNames[index] ?? `Bölge ${index}`}`,
+          lon,
+          lat,
+          isCapital,
+          recruitCapacity: capacity,
+          income:
+            230 +
+            capacity * 120 +
+            Math.round(Math.min(260, sizeScore / 3)),
+          growth:
+            14 +
+            capacity * 8 +
+            Math.round(Math.min(24, sizeScore / 45)),
+        });
+      });
+    });
+
+    return {
+      countries: [...COUNTRIES, ...extraCountries],
+      cities: [...CITIES, ...extraCities],
+    };
+  }, [world]);
+
+  const allCountries = generatedWorldData.countries;
+  const allCities = generatedWorldData.cities;
+  const allCountryByCode = useMemo(
+    () =>
+      Object.fromEntries(
+        allCountries.map((country) => [
+          country.code,
+          country,
+        ])
+      ) as Record<string, CountryDefinition>,
+    [allCountries]
+  );
+  const allCitiesForCountry = (code: string) =>
+    allCities.filter(
+      (city) => city.countryCode === code
+    );
+
   const strategy = strategyById(selectedStrategy);
-  const selectedCity = CITIES.find(
+  const selectedCity = allCities.find(
     (city) => city.code === selectedCityCode
   );
   const selectedCityOwner = selectedCity
@@ -793,9 +920,9 @@ export default function App() {
     ? garrisons[selectedCity.code] ?? {}
     : {};
   const selectedCountryDefinition =
-    COUNTRY_BY_CODE[selectedCountry];
+    allCountryByCode[selectedCountry];
   const selectedCountryCities =
-    citiesForCountry(selectedCountry);
+    allCitiesForCountry(selectedCountry);
   const selectedCountryOwnedCities =
     selectedCountryCities.filter(
       (city) => cityOwners[city.code] === currentPlayer
@@ -812,9 +939,9 @@ export default function App() {
   const mapViewBox = `${mapCenter.x - mapViewWidth / 2} ${mapCenter.y - mapViewHeight / 2} ${mapViewWidth} ${mapViewHeight}`;
 
   const selectedHomelandData =
-    COUNTRY_BY_CODE[selectedHomeland];
+    allCountryByCode[selectedHomeland];
   const homelandCities = selectedHomeland
-    ? citiesForCountry(selectedHomeland)
+    ? allCitiesForCountry(selectedHomeland)
     : [];
   const homelandCapital = homelandCities.find(
     (city) => city.isCapital
@@ -916,7 +1043,7 @@ export default function App() {
         : "";
 
   const activeMoveSourceCity = moveSourceCode
-    ? CITIES.find((city) => city.code === moveSourceCode)
+    ? allCities.find((city) => city.code === moveSourceCode)
     : undefined;
   const activeMoveSourceArmy = moveSourceArmyId
     ? fieldArmies.find((army) => army.id === moveSourceArmyId)
@@ -1197,7 +1324,7 @@ export default function App() {
   }
 
   function beginCampaign(countryCode: string) {
-    const country = COUNTRY_BY_CODE[countryCode];
+    const country = allCountryByCode[countryCode];
     if (!country) return;
     if (country.purchasePrice > startingMoney) {
       setNotice("Bu ülke için başlangıç paran yeterli değil.");
@@ -1217,7 +1344,7 @@ export default function App() {
     setWinner(null);
 
     const nextCountryOwners: Record<string, string | null> = {};
-    COUNTRIES.forEach((item) => {
+    allCountries.forEach((item) => {
       nextCountryOwners[item.code] = null;
     });
     nextCountryOwners[countryCode] = currentPlayer;
@@ -1226,7 +1353,7 @@ export default function App() {
 
     const nextCityOwners: Record<string, string | null> = {};
     const nextGarrisons: Garrison = {};
-    CITIES.forEach((city) => {
+    allCities.forEach((city) => {
       let owner: string | null = null;
       if (city.countryCode === countryCode) owner = currentPlayer;
       if (city.countryCode === doganCountry) owner = "Dogan";
@@ -1257,7 +1384,7 @@ export default function App() {
     });
     setTurn(1);
     setSelectedCountry(countryCode);
-    const capital = citiesForCountry(countryCode).find(
+    const capital = allCitiesForCountry(countryCode).find(
       (city) => city.isCapital
     );
     if (capital) {
@@ -1377,7 +1504,7 @@ export default function App() {
 
   function issueFreeMovement(targetXRaw: number, targetY: number) {
     const sourceCity = moveSourceCode
-      ? CITIES.find((city) => city.code === moveSourceCode)
+      ? allCities.find((city) => city.code === moveSourceCode)
       : undefined;
     const sourceArmy = moveSourceArmyId
       ? fieldArmies.find((army) => army.id === moveSourceArmyId)
@@ -1449,7 +1576,7 @@ export default function App() {
       return;
     }
 
-    const nearestCity = CITIES.reduce<{
+    const nearestCity = allCities.reduce<{
       city: CityNode | null;
       distance: number;
     }>(
@@ -1802,7 +1929,7 @@ export default function App() {
       });
 
     cityGroups.forEach((group) => {
-      const targetCity = CITIES.find(
+      const targetCity = allCities.find(
         (city) => city.code === group.targetCityCode
       );
       if (!targetCity) return;
@@ -2112,7 +2239,7 @@ export default function App() {
             0) + order.quantity,
       };
 
-      const city = CITIES.find(
+      const city = allCities.find(
         (item) => item.code === order.cityCode
       );
       const unit = UNIT_BY_ID[order.unitId];
@@ -2125,8 +2252,8 @@ export default function App() {
 
     const nextHolds = { ...capitalHolds };
 
-    COUNTRIES.forEach((country) => {
-      const capital = citiesForCountry(country.code).find(
+    allCountries.forEach((country) => {
+      const capital = allCitiesForCountry(country.code).find(
         (city) => city.isCapital
       );
       if (!capital) return;
@@ -2208,7 +2335,7 @@ export default function App() {
       );
     }
 
-    const ownedCities = CITIES.filter(
+    const ownedCities = allCities.filter(
       (city) =>
         nextCityOwners[city.code] === currentPlayer
     );
@@ -2219,7 +2346,7 @@ export default function App() {
     const steelIncome = ownedCities.reduce(
       (sum, city) =>
         sum +
-        (COUNTRY_BY_CODE[city.countryCode]?.primaryResource ===
+        (allCountryByCode[city.countryCode]?.primaryResource ===
         "Çelik"
           ? 18
           : 4),
@@ -2228,7 +2355,7 @@ export default function App() {
     const oilIncome = ownedCities.reduce(
       (sum, city) =>
         sum +
-        (COUNTRY_BY_CODE[city.countryCode]?.primaryResource ===
+        (allCountryByCode[city.countryCode]?.primaryResource ===
         "Petrol"
           ? 18
           : 3),
@@ -2315,7 +2442,7 @@ export default function App() {
                 );
                 const code = featureCountryCode(feature);
                 const supported =
-                  Boolean(COUNTRY_BY_CODE[code]);
+                  Boolean(allCountryByCode[code]);
                 const isSelected =
                   mode === "homeland"
                     ? code === selectedHomeland
@@ -2371,7 +2498,7 @@ export default function App() {
             </g>
 
             {mode === "game" &&
-              CITIES.map((city) => {
+              allCities.map((city) => {
                 const [baseX, y] = project([
                   city.lon,
                   city.lat,
@@ -2640,7 +2767,7 @@ export default function App() {
                   previewLon,
                   previewLat
                 );
-                const previewNearestCity = CITIES.reduce<{
+                const previewNearestCity = allCities.reduce<{
                   city: CityNode | null;
                   distance: number;
                 }>(
@@ -3272,18 +3399,26 @@ export default function App() {
                   <div>
                     <span>Toplam gelir</span>
                     <b>
-                      {countryIncome(
-                        selectedHomeland
-                      ).toLocaleString("tr-TR")}
+                      {homelandCities
+                        .reduce(
+                          (sum, city) =>
+                            sum + city.income,
+                          0
+                        )
+                        .toLocaleString("tr-TR")}
                     </b>
                   </div>
                   <div>
                     <span>Tur büyümesi</span>
                     <b>
                       +
-                      {countryGrowth(
-                        selectedHomeland
-                      ).toLocaleString("tr-TR")}
+                      {homelandCities
+                        .reduce(
+                          (sum, city) =>
+                            sum + city.growth,
+                          0
+                        )
+                        .toLocaleString("tr-TR")}
                     </b>
                   </div>
                 </div>
@@ -3353,7 +3488,7 @@ export default function App() {
     );
   }
 
-  const ownedCityCount = CITIES.filter(
+  const ownedCityCount = allCities.filter(
     (city) => cityOwners[city.code] === currentPlayer
   ).length;
   const countryHold =
