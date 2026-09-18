@@ -1505,3 +1505,24 @@ button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
+
+
+.transport-ok {
+  color: #78d7b1 !important;
+}
+
+.transport-warning {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding: 7px 8px;
+  border: 1px solid rgba(224, 89, 72, 0.42);
+  border-radius: 5px;
+  background: rgba(102, 29, 22, 0.28);
+  color: #ff9c8f;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.move-summary {
+  align-items: center;
+}
