@@ -658,3 +658,36 @@ input:focus {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+
+/* v0.5 embedded unit artwork */
+.unit-row {
+  grid-template-columns: 44px 1fr auto;
+  min-height: 50px;
+}
+
+.unit-catalog-icon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,.35));
+}
+
+.selected-unit-art {
+  display: grid;
+  place-items: center;
+  min-height: 118px;
+  margin: 10px 0 12px;
+  border: 1px solid #1c3348;
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(47,140,255,.09), transparent 60%),
+    #07101a;
+}
+
+.selected-unit-art img {
+  width: 108px;
+  height: 108px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 12px rgba(0,0,0,.4));
+}
