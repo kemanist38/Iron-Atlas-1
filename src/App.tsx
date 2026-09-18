@@ -3285,19 +3285,11 @@ export default function App() {
 
             {cityTab === "production" ? (
               <div className="unit-scroll">
-                <div className="capacity-strip">
-                  <span>Aktif üretim</span>
-                  <b>
-                    {
-                      productionQueue.filter(
-                        (order) =>
-                          order.cityCode ===
-                            selectedCity.code &&
-                          order.readyTurn > turn
-                      ).length
-                    }
-                    /{selectedCity.recruitCapacity}
-                  </b>
+                <div className="capacity-strip instant-production">
+                  <span>Üretim</span>
+                  <b>ANINDA</b>
+                  <span>Şehir kapasitesi</span>
+                  <b>{selectedCity.recruitCapacity}</b>
                 </div>
 
                 {UNIT_DEFINITIONS.map((unit) => {
@@ -3307,19 +3299,7 @@ export default function App() {
                   const requiresPort =
                     unit.domain === "naval" &&
                     !cityHasPort(selectedCity.code);
-                  const pending =
-                    productionQueue
-                      .filter(
-                        (order) =>
-                          order.cityCode ===
-                            selectedCity.code &&
-                          order.unitId === unit.id
-                      )
-                      .reduce(
-                        (sum, order) =>
-                          sum + order.quantity,
-                        0
-                      );
+
                   return (
                     <div
                       className="unit-row"
@@ -3356,7 +3336,7 @@ export default function App() {
                         )}
                       </div>
                       <div className="unit-pending">
-                        {pending > 0 ? pending : ""}
+                        {selectedGarrison[unit.id] ?? 0}
                       </div>
                       <button
                         disabled={
@@ -3389,6 +3369,22 @@ export default function App() {
                         }
                       >
                         +5
+                      </button>
+                      <button
+                        disabled={
+                          selectedCityOwner !==
+                            currentPlayer ||
+                          requiresPort
+                        }
+                        onClick={() =>
+                          queueProduction(
+                            selectedCity,
+                            unit,
+                            10
+                          )
+                        }
+                      >
+                        +10
                       </button>
                     </div>
                   );
