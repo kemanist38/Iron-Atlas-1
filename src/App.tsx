@@ -3326,8 +3326,7 @@ export default function App() {
             ) : (
               <div className="unit-scroll movement-list">
                 <p>
-                  Önce slider, +/− veya ALL ile birlik miktarını seç.
-                  Sonra sürükleme moduna geç; şehir üzerinde çıkan sarı birlik işaretini tutup haritada istediğin yere bırak.
+                  Birlik miktarını seç ve sarı işareti sürükle. Deniz aşmak için kara birlikleriyle Destek Gemisi, hava nakli için Nakliye Uçağı seç.
                 </p>
                 {UNIT_DEFINITIONS.filter(
                   (unit) =>
@@ -3427,6 +3426,19 @@ export default function App() {
                       ? Math.round(activeMoveRangeKm).toLocaleString("tr-TR") + " km"
                       : "—"}
                   </b>
+                  {transportModeLabel && (
+                    <>
+                      <span>Nakliye</span>
+                      <b className="transport-ok">
+                        {transportModeLabel}
+                      </b>
+                    </>
+                  )}
+                  {transportCapacityIssue && (
+                    <div className="transport-warning">
+                      {transportCapacityIssue}
+                    </div>
+                  )}
                 </div>
 
                 <div
@@ -3485,9 +3497,7 @@ export default function App() {
 
             <div className="unit-scroll movement-list">
               <p>
-                Birlik miktarını seç. Sarı işaret aktif
-                olunca aynı saha birliğini tekrar hareket
-                ettirebilirsin.
+                Birlik miktarını seç. Konvoydaki kara birliklerini taşımak için taşıyıcı gemi/uçağı da aynı seçimde bırak.
               </p>
 
               {UNIT_DEFINITIONS.filter(
@@ -3584,6 +3594,19 @@ export default function App() {
                       ).toLocaleString("tr-TR") + " km"
                     : "—"}
                 </b>
+                {transportModeLabel && (
+                  <>
+                    <span>Nakliye</span>
+                    <b className="transport-ok">
+                      {transportModeLabel}
+                    </b>
+                  </>
+                )}
+                {transportCapacityIssue && (
+                  <div className="transport-warning">
+                    {transportCapacityIssue}
+                  </div>
+                )}
               </div>
 
               <div
@@ -3622,8 +3645,8 @@ export default function App() {
         {(moveSourceCode || moveSourceArmyId) && (
           <div className="target-hint">
             <span>
-              ŞEHİR ÜZERİNDEKİ SARI BİRLİK İŞARETİNİ TUT VE SÜRÜKLE · {moveSelectionCount} birlik · sınır{" "}
-              {Math.round(activeMoveRangeKm).toLocaleString("tr-TR")} km · yeşil alan dışına bırakılamaz
+              SARI BİRLİK İŞARETİNİ TUT VE SÜRÜKLE · {moveSelectionCount} birlik · {transportModeLabel || "Normal hareket"} · sınır{" "}
+              {Math.round(activeMoveRangeKm).toLocaleString("tr-TR")} km
             </span>
             <button
               onClick={() => {
