@@ -145,11 +145,13 @@ function pointInRing(
     const yi = ring[i][1];
     const xj = ring[j][0];
     const yj = ring[j][1];
+    const denominator =
+      Math.abs(yj - yi) < 1e-12 ? 1e-12 : yj - yi;
     const intersects =
       yi > lat !== yj > lat &&
       lon <
         ((xj - xi) * (lat - yi)) /
-          Math.max(1e-12, yj - yi) +
+          denominator +
           xi;
     if (intersects) inside = !inside;
   }
