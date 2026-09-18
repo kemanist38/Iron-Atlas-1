@@ -2183,68 +2183,131 @@ export default function App() {
                   currentTarget.x,
                   currentTarget.y,
                 ]);
+                const previewPoint = {
+                  lon: previewLon,
+                  lat: previewLat,
+                };
                 const previewDistance = haversinePoints(
                   activeMoveSource,
-                  {
-                    lon: previewLon,
-                    lat: previewLat,
-                  }
+                  previewPoint
                 );
                 const previewIsLand = isLandPoint(
                   world,
                   previewLon,
                   previewLat
                 );
+                const previewNearestCity = CITIES.reduce<{
+                  city: CityNode | null;
+                  distance: number;
+                }>(
+                  (best, city) => {
+                    const distance = haversinePoints(
+                      city,
+                      previewPoint
+                    );
+                    return distance < best.distance
+                      ? { city, distance }
+                      : best;
+                  },
+                  {
+                    city: null,
+                    distance: Number.POSITIVE_INFINITY,
+                  }
+                );
+                const previewCity =
+                  previewNearestCity.city &&
+                  previewNearestCity.distance <= 120
+                    ? previewNearestCity.city
+                    : null;
+                const previewIsPort =
+                  Boolean(previewCity) &&
+                  cityHasPort(previewCity!.code);
+                const previewFriendlyPort =
+                  previewIsPort &&
+                  cityOwners[previewCity!.code] ===
+                    currentPlayer;
+
                 const previewSurfaceInvalid =
+                  Boolean(transportCapacityIssue) ||
                   moveSurface === "mixed" ||
-                  (moveSurface === "land" && !previewIsLand) ||
-                  (moveSurface === "naval" && previewIsLand);
+                  moveSurface === "none" ||
+                  (moveSurface === "land" &&
+                    !previewIsLand) ||
+                  (moveSurface === "naval" &&
+                    previewIsLand &&
+                    !previewFriendlyPort) ||
+                  (moveSurface === "naval_transport" &&
+                    previewIsLand &&
+                    !previewIsPort) ||
+                  (moveSurface === "air_transport" &&
+                    !previewIsLand);
+
+                const previewRouteSurface:
+                  | "land"
+                  | "naval"
+                  | "air" =
+                  moveSurface === "naval_transport"
+                    ? "naval"
+                    : moveSurface === "air_transport"
+                      ? "air"
+                      : moveSurface === "land" ||
+                          moveSurface === "naval" ||
+                          moveSurface === "air"
+                        ? moveSurface
+                        : "air";
+
                 const previewRouteInvalid =
                   !previewSurfaceInvalid &&
-                  moveSurface !== "mixed" &&
+                  previewRouteSurface !== "air" &&
                   !routeStaysOnSurface(
                     world,
                     activeMoveSource,
-                    {
-                      lon: previewLon,
-                      lat: previewLat,
-                    },
-                    moveSurface,
+                    previewPoint,
+                    previewRouteSurface,
                     Boolean(
                       activeMoveSource.sourceKind === "city" &&
-                        moveSurface === "naval" &&
-                        cityHasPort(String(activeMoveSource.id))
+                        previewRouteSurface === "naval" &&
+                        cityHasPort(
+                          String(activeMoveSource.id)
+                        )
                     ),
                     Boolean(
-                      moveSurface === "naval" &&
-                        CITIES.some(
-                          (city) =>
-                            cityHasPort(city.code) &&
-                            cityOwners[city.code] ===
-                              currentPlayer &&
-                            haversinePoints(city, {
-                              lon: previewLon,
-                              lat: previewLat,
-                            }) <= 120
-                        )
+                      previewIsPort &&
+                        previewRouteSurface === "naval"
                     )
                   );
+
                 const previewInvalid =
                   previewDistance > activeMoveRangeKm ||
                   previewSurfaceInvalid ||
                   previewRouteInvalid;
+
                 const invalidLabel =
                   previewDistance > activeMoveRangeKm
                     ? "MENZİL DIŞI"
-                    : moveSurface === "land" &&
-                        !previewIsLand
-                      ? "KARA BİRLİĞİ DENİZE GİDEMEZ"
-                      : moveSurface === "naval" &&
-                          previewIsLand
-                        ? "DENİZ BİRLİĞİ KARAYA GİDEMEZ"
-                        : previewRouteInvalid
-                          ? "ROTA UYGUN DEĞİL"
-                          : "";
+                    : transportCapacityIssue
+                      ? "NAKLİYE KAPASİTESİ YETERSİZ"
+                      : moveSurface === "mixed"
+                        ? "GEÇERSİZ BİRLİK KARIŞIMI"
+                        : moveSurface === "land" &&
+                            !previewIsLand
+                          ? "KARA BİRLİĞİ DENİZE GİDEMEZ"
+                          : moveSurface === "naval" &&
+                              previewIsLand &&
+                              !previewFriendlyPort
+                            ? "GEMİ KARAYA GİDEMEZ"
+                            : moveSurface ===
+                                  "naval_transport" &&
+                                previewIsLand &&
+                                !previewIsPort
+                              ? "ÇIKARMA İÇİN LİMAN SEÇ"
+                              : moveSurface ===
+                                    "air_transport" &&
+                                  !previewIsLand
+                                ? "KARA NOKTASI SEÇ"
+                                : previewRouteInvalid
+                                  ? "ROTA UYGUN DEĞİL"
+                                  : "";
 
                 return (
                   <g className="free-move-drag-layer">
@@ -2302,7 +2365,6 @@ export default function App() {
                   </g>
                 );
               })()}
-
 
           </g>
         ))}
