@@ -25,6 +25,7 @@ import {
   COUNTRIES,
   COUNTRY_BY_CODE,
   citiesForCountry,
+  cityHasPort,
   type CityNode,
 } from "./gameData";
 
@@ -375,6 +376,50 @@ function unitDefensePower(units: Record<string, number>) {
   }, 0);
 }
 
+function unitAttackPower(
+  units: Record<string, number>,
+  transform?: (unit: UnitDefinition) => UnitDefinition
+) {
+  return Object.entries(units).reduce((sum, [unitId, quantity]) => {
+    const base = UNIT_BY_ID[unitId];
+    if (!base) return sum;
+    const unit = transform ? transform(base) : base;
+    return (
+      sum +
+      quantity *
+        Math.max(1, unit.stats.attack) *
+        (1 + unit.stats.critical / 25) *
+        Math.max(0.7, unit.stats.hp / 7)
+    );
+  }, 0);
+}
+
+function scaleArmy(
+  units: Record<string, number>,
+  survivorRatio: number
+) {
+  const next: Record<string, number> = {};
+  Object.entries(units).forEach(([unitId, quantity]) => {
+    const left = Math.max(
+      0,
+      Math.round(quantity * survivorRatio)
+    );
+    if (left > 0) next[unitId] = left;
+  });
+  return next;
+}
+
+function mergeArmy(
+  target: Record<string, number>,
+  incoming: Record<string, number>
+) {
+  const next = { ...target };
+  Object.entries(incoming).forEach(([unitId, quantity]) => {
+    next[unitId] = (next[unitId] ?? 0) + quantity;
+  });
+  return next;
+}
+
 function countryIncome(countryCode: string) {
   return citiesForCountry(countryCode).reduce(
     (sum, city) => sum + city.income,
@@ -477,6 +522,7 @@ export default function App() {
   const [notice, setNotice] = useState(
     "Yeni bir oyun oluşturarak başlayabilirsin."
   );
+  const [lastTurnEvents, setLastTurnEvents] = useState<string[]>([]);
 
   const [mapZoom, setMapZoom] = useState(1);
   const [mapCenter, setMapCenter] = useState({
@@ -890,6 +936,7 @@ export default function App() {
     setFieldArmyPanelOpen(false);
     setMoveSourceArmyId(null);
     setCapitalHolds({});
+    setLastTurnEvents([]);
     setResources({
       gold: startingMoney - country.purchasePrice,
       steel: 900,
@@ -924,6 +971,13 @@ export default function App() {
   ) {
     if (cityOwners[city.code] !== currentPlayer) {
       setNotice("Sadece kendi şehrinde üretim yapabilirsin.");
+      return;
+    }
+
+    if (unit.domain === "naval" && !cityHasPort(city.code)) {
+      setNotice(
+        `${city.name} şehrinde liman yok. Deniz birlikleri yalnızca liman şehirlerinde üretilebilir.`
+      );
       return;
     }
 
@@ -1625,6 +1679,11 @@ export default function App() {
                     <text className="capacity-number">
                       {city.recruitCapacity}
                     </text>
+                    {cityHasPort(city.code) && (
+                      <text className="port-marker" x="8" y="8">
+                        ⚓
+                      </text>
+                    )}
                     {showLabel && (
                       <g className="city-label">
                         <text y="-11">{city.name}</text>
@@ -2519,6 +2578,9 @@ export default function App() {
                     : "Şehir"}{" "}
                   · Kapasite{" "}
                   {selectedCity.recruitCapacity}
+                  {cityHasPort(selectedCity.code)
+                    ? " · ⚓ Liman"
+                    : ""}
                 </span>
               </div>
               <button
@@ -2594,6 +2656,9 @@ export default function App() {
                   const effective = effectiveUnit(unit);
                   const cost =
                     productionCost(effective, 1);
+                  const requiresPort =
+                    unit.domain === "naval" &&
+                    !cityHasPort(selectedCity.code);
                   const pending =
                     productionQueue
                       .filter(
@@ -2636,6 +2701,11 @@ export default function App() {
                           {cost.gold} A · {cost.steel} Ç
                           · {cost.oil} P
                         </span>
+                        {requiresPort && (
+                          <span className="port-required">
+                            ⚓ Liman gerekli
+                          </span>
+                        )}
                       </div>
                       <div className="unit-pending">
                         {pending > 0 ? pending : ""}
@@ -2643,7 +2713,8 @@ export default function App() {
                       <button
                         disabled={
                           selectedCityOwner !==
-                          currentPlayer
+                            currentPlayer ||
+                          requiresPort
                         }
                         onClick={() =>
                           queueProduction(
@@ -2658,7 +2729,8 @@ export default function App() {
                       <button
                         disabled={
                           selectedCityOwner !==
-                          currentPlayer
+                            currentPlayer ||
+                          requiresPort
                         }
                         onClick={() =>
                           queueProduction(
