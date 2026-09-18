@@ -1356,3 +1356,47 @@ button:disabled {
   fill: #ffd2ce;
   stroke: #3a0806;
 }
+
+
+.drag-mode-status {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid #39433a;
+  border-radius: 4px;
+  background: #0b110e;
+  color: #78877d;
+  font-size: 9px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.drag-mode-status.active {
+  border-color: #b9aa1e;
+  background: rgba(91, 84, 7, 0.38);
+  color: #fff29b;
+}
+
+.draggable-army-token circle {
+  fill: rgba(28, 31, 19, 0.98);
+  stroke: #ffe15b;
+  stroke-width: 2.5;
+  animation: army-token-pulse 1.15s ease-in-out infinite;
+}
+
+.draggable-army-token path {
+  fill: #ffe15b;
+  transform: scale(1.08);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes army-token-pulse {
+  0%, 100% {
+    stroke-width: 2.3;
+    filter: drop-shadow(0 0 2px rgba(255, 225, 91, .45));
+  }
+  50% {
+    stroke-width: 3.4;
+    filter: drop-shadow(0 0 6px rgba(255, 225, 91, .95));
+  }
+}
