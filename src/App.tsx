@@ -2,8 +2,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { UNIT_DEFINITIONS, type UnitDefinition } from "./unitData";
 import { UNIT_ICON_BY_ID } from "./unitIcons";
+import { STRATEGIES, applyStrategy, strategyById } from "./strategyData";
 
-type Screen = "lobby" | "homeland" | "game";
+type Screen = "lobby" | "setup" | "homeland" | "game";
 type Position = [number, number];
 
 type GeoGeometry = {
@@ -228,7 +229,7 @@ const INITIAL_CITY_OWNERS = Object.fromEntries(
   ])
 ) as Record<string, string | null>;
 
-const CAPITAL_HOLD_TURNS_REQUIRED = 2;
+const victoryHoldTurns = 2;
 
 
 type HomelandOption = {
@@ -442,6 +443,23 @@ export default function App() {
   const [roomName, setRoomName] = useState("Global War");
   const [selectedHomeland, setSelectedHomeland] = useState("");
   const [startingMoney, setStartingMoney] = useState(10000);
+  const [setupTab, setSetupTab] =
+    useState<"basic" | "victory" | "advanced">("basic");
+  const [selectedStrategy, setSelectedStrategy] = useState("balanced");
+  const [turnMinutes, setTurnMinutes] = useState(4);
+  const [maxPlayers, setMaxPlayers] = useState(10);
+  const [joinUntilTurn, setJoinUntilTurn] = useState(5);
+  const [playerColor, setPlayerColor] = useState("#2687e8");
+  const [victoryHoldTurns, setVictoryHoldTurns] = useState(2);
+  const [maxGameTurns, setMaxGameTurns] = useState(50);
+  const [rareUnitChance, setRareUnitChance] =
+    useState<"low" | "normal" | "high">("low");
+  const [maxAllies, setMaxAllies] = useState(3);
+  const [directJoin, setDirectJoin] = useState(false);
+  const [allowRejoin, setAllowRejoin] = useState(true);
+  const [improvementsEnabled, setImprovementsEnabled] = useState(true);
+  const [strategiesEnabled, setStrategiesEnabled] = useState(true);
+  const [extraCities, setExtraCities] = useState(true);
   const [cityPanelOpen, setCityPanelOpen] = useState(false);
   const [cityPanelTab, setCityPanelTab] =
     useState<"production" | "movement">("production");
@@ -516,9 +534,13 @@ export default function App() {
     selectedFeature?.properties?.name ??
     (selectedId === "TUR" ? "Turkey" : selectedId);
 
-  const selectedUnit =
+  const selectedUnitBase =
     UNIT_DEFINITIONS.find((unit) => unit.id === selectedUnitId) ??
     UNIT_DEFINITIONS[0];
+  const selectedUnit = strategiesEnabled
+    ? applyStrategy(selectedUnitBase, selectedStrategy)
+    : selectedUnitBase;
+  const activeStrategy = strategyById(selectedStrategy);
 
   const selectedCity = cityNodes.find((city) => city.code === selectedCityId);
   const currentPlayer = commander.trim() || "Atlas";
@@ -773,8 +795,11 @@ export default function App() {
       return;
     }
 
-    const unit = unitDefinition(unitId);
-    if (!unit) return;
+    const baseUnit = unitDefinition(unitId);
+    if (!baseUnit) return;
+    const unit = strategiesEnabled
+      ? applyStrategy(baseUnit, selectedStrategy)
+      : baseUnit;
 
     const cost = getProductionCost(unit, quantity);
 
@@ -863,8 +888,11 @@ export default function App() {
     if (removeIndex < 0) return;
 
     const order = productionQueue[removeIndex];
-    const unit = unitDefinition(order.unitId);
-    if (!unit) return;
+    const baseUnit = unitDefinition(order.unitId);
+    if (!baseUnit) return;
+    const unit = strategiesEnabled
+      ? applyStrategy(baseUnit, selectedStrategy)
+      : baseUnit;
 
     const refund = getProductionCost(unit, order.quantity);
 
@@ -993,8 +1021,11 @@ export default function App() {
     const skipped: string[] = [];
 
     manifestEntries.forEach(([unitId, quantity], index) => {
-      const unit = unitDefinition(unitId);
-      if (!unit || quantity <= 0) return;
+      const baseUnit = unitDefinition(unitId);
+      if (!baseUnit || quantity <= 0) return;
+      const unit = strategiesEnabled
+        ? applyStrategy(baseUnit, selectedStrategy)
+        : baseUnit;
 
       if (unit.domain === "naval") {
         skipped.push(unit.name + " (liman gerekli)");
@@ -1083,6 +1114,11 @@ export default function App() {
   }
 
   function advanceTurn() {
+    if (turn >= maxGameTurns) {
+      setNotice("Maksimum oyun turuna ulaşıldı. Oyun sonuç ekranı sonraki aşamada eklenecek.");
+      return;
+    }
+
     const nextTurn = turn + 1;
     const completed = productionQueue.filter(
       (order) => order.readyTurn <= nextTurn
@@ -1136,8 +1172,11 @@ export default function App() {
         return;
       }
 
-      const attacker = unitDefinition(order.unitId);
-      if (!attacker) return;
+      const baseAttacker = unitDefinition(order.unitId);
+      if (!baseAttacker) return;
+      const attacker = strategiesEnabled
+        ? applyStrategy(baseAttacker, selectedStrategy)
+        : baseAttacker;
 
       const defenders = {
         ...(nextGarrisons[order.toCode] ?? {}),
@@ -1275,11 +1314,11 @@ export default function App() {
             " başkenti " +
             turns +
             "/" +
-            CAPITAL_HOLD_TURNS_REQUIRED +
+            victoryHoldTurns +
             " tur tutuyor."
         );
 
-        if (turns >= CAPITAL_HOLD_TURNS_REQUIRED) {
+        if (turns >= victoryHoldTurns) {
           nextCountryState[countryCode] = {
             ...(nextCountryState[countryCode] ?? {
               troops: 5,
@@ -1359,6 +1398,278 @@ export default function App() {
     setTurn(nextTurn);
   }
 
+  if (screen === "setup") {
+    const colorOptions = [
+      "#ff7a18", "#21b638", "#e63838", "#2367d1", "#f0c526",
+      "#7836c9", "#21bfe6", "#ef6c9a", "#a76d0b", "#6e55d8",
+      "#0b7d70", "#7aa815", "#ff5a1f", "#2f8dc7", "#8f8b5d",
+      "#15d6c4", "#8cc59c", "#d39a8b", "#a93313", "#153e70",
+      "#1b9c4a", "#bc165f", "#6c6c6c", "#e8de8a"
+    ];
+
+    return (
+      <div className="app setup-screen">
+        <header className="brandbar setup-brandbar">
+          <div>
+            <span className="eyebrow">NEW CAMPAIGN</span>
+            <h1>IRON ATLAS</h1>
+          </div>
+          <button className="ghost" onClick={() => setScreen("lobby")}>
+            ← LOBİ
+          </button>
+        </header>
+
+        <main className="setup-shell">
+          <section className="setup-map-preview card">
+            <span className="eyebrow">WORLD MAP</span>
+            <div className="setup-map-image">
+              <img src={TERRAIN_MAP_URL} alt="Dünya haritası" />
+            </div>
+
+            <label className="setup-map-select">
+              HARİTA
+              <select defaultValue="whole-world">
+                <option value="whole-world">Tüm Dünya</option>
+              </select>
+            </label>
+
+            <div className="setup-color-section">
+              <span>OYUNCU RENGİN</span>
+              <div className="setup-color-grid">
+                {colorOptions.map((color) => (
+                  <button
+                    key={color}
+                    aria-label={"Renk " + color}
+                    className={playerColor === color ? "selected" : ""}
+                    style={{ background: color }}
+                    onClick={() => setPlayerColor(color)}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="setup-config card">
+            <div className="setup-tabs">
+              <button
+                className={setupTab === "basic" ? "active" : ""}
+                onClick={() => setSetupTab("basic")}
+              >
+                TEMEL
+              </button>
+              <button
+                className={setupTab === "victory" ? "active" : ""}
+                onClick={() => setSetupTab("victory")}
+              >
+                ZAFER
+              </button>
+              <button
+                className={setupTab === "advanced" ? "active" : ""}
+                onClick={() => setSetupTab("advanced")}
+              >
+                GELİŞMİŞ
+              </button>
+            </div>
+
+            {setupTab === "basic" && (
+              <div className="setup-form">
+                <label>
+                  Oyun ismi
+                  <input
+                    value={roomName}
+                    onChange={(event) => setRoomName(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Tur süresi
+                  <select
+                    value={turnMinutes}
+                    onChange={(event) => setTurnMinutes(Number(event.target.value))}
+                  >
+                    {[1, 2, 4, 6, 8, 12].map((value) => (
+                      <option key={value} value={value}>{value} dakika</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Başlangıç parası
+                  <select
+                    value={startingMoney}
+                    onChange={(event) => setStartingMoney(Number(event.target.value))}
+                  >
+                    {[5000, 10000, 25000, 50000].map((value) => (
+                      <option key={value} value={value}>
+                        {value.toLocaleString("tr-TR")} Altın
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Maksimum oyuncu
+                  <select
+                    value={maxPlayers}
+                    onChange={(event) => setMaxPlayers(Number(event.target.value))}
+                  >
+                    {[2, 4, 10, 20, 40].map((value) => (
+                      <option key={value} value={value}>{value}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Oyuna son katılım turu
+                  <select
+                    value={joinUntilTurn}
+                    onChange={(event) => setJoinUntilTurn(Number(event.target.value))}
+                  >
+                    {[1, 3, 5, 10].map((value) => (
+                      <option key={value} value={value}>{value}. tur</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Strateji
+                  <select
+                    value={selectedStrategy}
+                    onChange={(event) => setSelectedStrategy(event.target.value)}
+                    disabled={!strategiesEnabled}
+                  >
+                    {STRATEGIES.map((strategy) => (
+                      <option key={strategy.id} value={strategy.id}>
+                        {strategy.name} — {strategy.role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="setup-strategy-note">
+                  <strong>{activeStrategy.name}</strong>
+                  <span>{activeStrategy.description}</span>
+                </div>
+              </div>
+            )}
+
+            {setupTab === "victory" && (
+              <div className="setup-form">
+                <div className="setup-rule-card">
+                  <span>Kazanma koşulu</span>
+                  <strong>Düşmanın başkentini ele geçir</strong>
+                </div>
+                <label>
+                  Başkenti kaç tur tutmalı?
+                  <select
+                    value={victoryHoldTurns}
+                    onChange={(event) => setVictoryHoldTurns(Number(event.target.value))}
+                  >
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <option key={value} value={value}>{value} tur</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Maksimum oyun süresi
+                  <select
+                    value={maxGameTurns}
+                    onChange={(event) => setMaxGameTurns(Number(event.target.value))}
+                  >
+                    {[20, 30, 50, 75, 100].map((value) => (
+                      <option key={value} value={value}>{value} tur</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+
+            {setupTab === "advanced" && (
+              <div className="setup-form">
+                <label>
+                  Nadir birlik ihtimali
+                  <select
+                    value={rareUnitChance}
+                    onChange={(event) =>
+                      setRareUnitChance(event.target.value as "low" | "normal" | "high")
+                    }
+                  >
+                    <option value="low">Düşük</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">Yüksek</option>
+                  </select>
+                </label>
+                <label>
+                  Maksimum müttefik
+                  <select
+                    value={maxAllies}
+                    onChange={(event) => setMaxAllies(Number(event.target.value))}
+                  >
+                    {[0, 1, 2, 3, 5, 8].map((value) => (
+                      <option key={value} value={value}>{value}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="setup-check">
+                  <input
+                    type="checkbox"
+                    checked={directJoin}
+                    onChange={(event) => setDirectJoin(event.target.checked)}
+                  />
+                  Direkt katılım
+                </label>
+                <label className="setup-check">
+                  <input
+                    type="checkbox"
+                    checked={allowRejoin}
+                    onChange={(event) => setAllowRejoin(event.target.checked)}
+                  />
+                  Tekrar katılmaya izin ver
+                </label>
+                <label className="setup-check">
+                  <input
+                    type="checkbox"
+                    checked={improvementsEnabled}
+                    onChange={(event) => setImprovementsEnabled(event.target.checked)}
+                  />
+                  Geliştirmeler aktif
+                </label>
+                <label className="setup-check">
+                  <input
+                    type="checkbox"
+                    checked={strategiesEnabled}
+                    onChange={(event) => setStrategiesEnabled(event.target.checked)}
+                  />
+                  Stratejiler aktif
+                </label>
+                <label className="setup-check">
+                  <input
+                    type="checkbox"
+                    checked={extraCities}
+                    onChange={(event) => setExtraCities(event.target.checked)}
+                  />
+                  Ek şehirler aktif
+                </label>
+              </div>
+            )}
+
+            <div className="setup-summary">
+              <span>Kurucu: <b>{currentPlayer}</b></span>
+              <span>Bütçe: <b>{startingMoney.toLocaleString("tr-TR")} Altın</b></span>
+              <span>Renk: <i style={{ background: playerColor }} /></span>
+            </div>
+
+            <button
+              className="primary setup-continue"
+              onClick={() => {
+                setMapZoom(1);
+                setMapCenter({ x: 500, y: 250 });
+                setSelectedHomeland("");
+                setScreen("homeland");
+              }}
+            >
+              ANAVATAN SEÇİMİNE GEÇ
+            </button>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
   if (screen === "homeland") {
     const homeland = HOMELAND_OPTIONS.find(
       (item) => item.code === selectedHomeland
@@ -1371,6 +1682,14 @@ export default function App() {
     );
     const homelandCapacity = homelandCities.reduce(
       (sum, city) => sum + city.recruitCapacity,
+      0
+    );
+    const homelandIncome = homelandCities.reduce(
+      (sum, city) => sum + city.income,
+      0
+    );
+    const homelandGrowth = homelandCities.reduce(
+      (sum, city) => sum + city.growth,
       0
     );
     const canPurchase = Boolean(homeland);
@@ -1505,6 +1824,12 @@ export default function App() {
                 (selectedHomeland || "Bir ülke seç")}
             </h3>
 
+            <div className="homeland-strategy-summary">
+              <span>STRATEJİ</span>
+              <b>{strategiesEnabled ? activeStrategy.name : "Kapalı"}</b>
+              <small>{strategiesEnabled ? activeStrategy.description : "Bu oyunda strateji bonusları devre dışı."}</small>
+            </div>
+
             <div className="starting-money-picker">
               <span>BAŞLANGIÇ PARASI</span>
               <div>
@@ -1539,6 +1864,14 @@ export default function App() {
                   <span>Asker basma kapasitesi</span>
                   <b>{homelandCapacity}</b>
                 </div>
+                <div className="purchase-stat">
+                  <span>Toplam şehir geliri</span>
+                  <b>{homelandIncome.toLocaleString("tr-TR")}</b>
+                </div>
+                <div className="purchase-stat">
+                  <span>Tur büyümesi</span>
+                  <b>+{homelandGrowth.toLocaleString("tr-TR")}</b>
+                </div>
                 <div className="purchase-stat country-price-row">
                   <span>Ülke fiyatı</span>
                   <b>
@@ -1553,6 +1886,15 @@ export default function App() {
                       startingMoney - homeland.purchasePrice
                     ).toLocaleString("tr-TR")} Altın
                   </b>
+                </div>
+
+                <div className="purchase-city-list">
+                  {homelandCities.map((city) => (
+                    <div key={city.code}>
+                      <span>{city.isCapital ? "★ " : ""}{city.name}</span>
+                      <b>{city.recruitCapacity}</b>
+                    </div>
+                  ))}
                 </div>
 
                 <button
@@ -1635,7 +1977,8 @@ export default function App() {
                 setMapCenter({ x: 500, y: 250 });
                 setSelectedHomeland("");
                 setStartingMoney(10000);
-                setScreen("homeland");
+                setSetupTab("basic");
+                setScreen("setup");
               }}
             >
               YENİ OYUN OLUŞTUR
@@ -1691,6 +2034,7 @@ export default function App() {
         <div>
           <span>OYUN</span>
           <strong>{roomName}</strong>
+          <small className="game-strategy-label">{activeStrategy.name}</small>
         </div>
         <div>
           <span>TUR</span>
@@ -1848,7 +2192,9 @@ export default function App() {
                           key={id}
                           d={geometryToPath(feature.geometry)}
                           fill={
-                            PLAYER_COLORS[ownerVisual] ?? PLAYER_COLORS.Neutral
+                            owner === currentPlayer
+                              ? playerColor
+                              : PLAYER_COLORS[ownerVisual] ?? PLAYER_COLORS.Neutral
                           }
                           className={
                             "country owner-" +
@@ -1908,7 +2254,7 @@ export default function App() {
                       const isSelectedCountry = selectedId === city.countryCode;
                       const cityOwner = cityOwners[city.code] ?? "Neutral";
                       const cityOwnerVisual =
-                        cityOwner === currentPlayer ? "Atlas" : cityOwner;
+                        cityOwner === currentPlayer ? "Current" : cityOwner;
 
                       const showCityName =
                         isSelectedCity ||
@@ -2386,7 +2732,7 @@ export default function App() {
               <span>Başkent kontrolü</span>
               <b>
                 {capitalHoldTurns[selectedCity.countryCode]?.turns ?? 0}/
-                {CAPITAL_HOLD_TURNS_REQUIRED} tur
+                {victoryHoldTurns} tur
               </b>
             </div>
           )}
