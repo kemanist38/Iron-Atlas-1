@@ -1581,12 +1581,47 @@ export default function App() {
       const defensePower =
         rawDefensePower * capitalDefenseMultiplier;
 
-      const attackPower = unitAttackPower(
-        group.units,
-        group.player === currentPlayer
-          ? effectiveUnit
-          : undefined
+      const hasLandUnits = Object.entries(
+        group.units
+      ).some(
+        ([unitId, quantity]) =>
+          quantity > 0 &&
+          UNIT_BY_ID[unitId]?.domain === "land"
       );
+      const hasNavalUnits = Object.entries(
+        group.units
+      ).some(
+        ([unitId, quantity]) =>
+          quantity > 0 &&
+          UNIT_BY_ID[unitId]?.domain === "naval"
+      );
+      const hasAirUnits = Object.entries(
+        group.units
+      ).some(
+        ([unitId, quantity]) =>
+          quantity > 0 &&
+          UNIT_BY_ID[unitId]?.domain === "air"
+      );
+      const amphibiousLanding =
+        hasLandUnits && hasNavalUnits;
+      const airborneLanding =
+        hasLandUnits &&
+        hasAirUnits &&
+        !hasNavalUnits &&
+        (group.units.transport_plane ?? 0) > 0;
+      const landingModifier = amphibiousLanding
+        ? 0.82
+        : airborneLanding
+          ? 0.9
+          : 1;
+
+      const attackPower =
+        unitAttackPower(
+          group.units,
+          group.player === currentPlayer
+            ? effectiveUnit
+            : undefined
+        ) * landingModifier;
 
       const attackerCount = Object.values(group.units).reduce(
         (sum, quantity) => sum + quantity,
@@ -1596,13 +1631,7 @@ export default function App() {
         (sum, quantity) => sum + quantity,
         0
       );
-      const hasOccupyingLand = Object.entries(
-        group.units
-      ).some(
-        ([unitId, quantity]) =>
-          quantity > 0 &&
-          UNIT_BY_ID[unitId]?.domain === "land"
-      );
+      const hasOccupyingLand = hasLandUnits;
 
       if (!hasOccupyingLand) {
         const defenderLossRatio =
@@ -1716,8 +1745,13 @@ export default function App() {
         nextGarrisons[targetCity.code] = survivors;
         nextCityOwners[targetCity.code] = group.player;
 
+        const captureType = amphibiousLanding
+          ? "Deniz çıkarması"
+          : airborneLanding
+            ? "Hava indirmesi"
+            : "Kara saldırısı";
         combatLog.push(
-          `${targetCity.name} ele geçirildi: ${group.player} · saldıran ${attackerCount} → ${survivorCount}, savunan ${defenderCount} → 0.`
+          `${targetCity.name} ele geçirildi: ${group.player} · ${captureType} · saldıran ${attackerCount} → ${survivorCount}, savunan ${defenderCount} → 0.`
         );
       } else {
         const defenderLossRatio = Math.min(
@@ -1778,8 +1812,13 @@ export default function App() {
           }
         }
 
+        const failedType = amphibiousLanding
+          ? "deniz çıkarmasını"
+          : airborneLanding
+            ? "hava indirmesini"
+            : "saldırıyı";
         combatLog.push(
-          `${targetCity.name} saldırıyı püskürttü: saldıran ${attackerCount} → ${retreatCount}, savunan ${defenderCount} → ${defenderLeft}.`
+          `${targetCity.name} ${failedType} püskürttü: saldıran ${attackerCount} → ${retreatCount}, savunan ${defenderCount} → ${defenderLeft}.`
         );
       }
     });
