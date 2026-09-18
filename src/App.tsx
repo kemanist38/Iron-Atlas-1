@@ -1140,6 +1140,23 @@ export default function App() {
 
     if (!sourceCity && !sourceArmy) return;
 
+    if (transportCapacityIssue) {
+      setNotice(transportCapacityIssue);
+      return;
+    }
+
+    if (moveSurface === "none") {
+      setNotice("Önce taşınacak birlik miktarını seç.");
+      return;
+    }
+
+    if (moveSurface === "mixed") {
+      setNotice(
+        "Bu birlik grubu birlikte hareket edemez. Kara birliklerini denizde Destek Gemisiyle, havada Nakliye Uçağıyla taşımalısın."
+      );
+      return;
+    }
+
     const sourcePoint = sourceCity
       ? (() => {
           const [x, y] = project([
@@ -1187,13 +1204,6 @@ export default function App() {
       return;
     }
 
-    if (moveSurface === "mixed") {
-      setNotice(
-        "Kara ve deniz birlikleri aynı hareket grubunda taşınamaz. Ayrı ayrı hareket ettir."
-      );
-      return;
-    }
-
     const nearestCity = CITIES.reduce<{
       city: CityNode | null;
       distance: number;
@@ -1211,20 +1221,37 @@ export default function App() {
       nearestCity.city && nearestCity.distance <= 120
         ? nearestCity.city
         : null;
-    const targetIsFriendlyPort =
+    const targetIsPort =
       Boolean(targetCity) &&
-      cityHasPort(targetCity!.code) &&
+      cityHasPort(targetCity!.code);
+    const targetIsFriendlyPort =
+      targetIsPort &&
       cityOwners[targetCity!.code] === currentPlayer;
-
     const targetIsLand = isLandPoint(
       world,
       targetLon,
       targetLat
     );
+    const sourceIsLand = isLandPoint(
+      world,
+      sourcePoint.lon,
+      sourcePoint.lat
+    );
+
+    if (
+      moveSurface === "land" &&
+      sourceArmy &&
+      !sourceIsLand
+    ) {
+      setNotice(
+        "Kara birlikleri denizde tek başına hareket edemez. Aynı gruptaki Destek Gemisini de seç."
+      );
+      return;
+    }
 
     if (moveSurface === "land" && !targetIsLand) {
       setNotice(
-        "Kara birlikleri denize bırakılamaz. Yeşil alan içindeki kara bölgesine bırak."
+        "Kara birlikleri denize bırakılamaz. Kara bölgesine bırak."
       );
       return;
     }
@@ -1235,58 +1262,92 @@ export default function App() {
       !targetIsFriendlyPort
     ) {
       setNotice(
-        "Deniz birlikleri karaya bırakılamaz. Yalnızca denize veya kendi liman şehrine bırakabilirsin."
+        "Deniz birlikleri karaya bırakılamaz. Denize veya kendi limanına bırak."
       );
       return;
     }
 
     if (
-      moveSurface === "naval" &&
-      sourceCity &&
-      !cityHasPort(sourceCity.code)
+      moveSurface === "naval_transport" &&
+      targetIsLand &&
+      !targetIsPort
     ) {
       setNotice(
-        `${sourceCity.name} liman şehri değil. Deniz birimleri yalnızca liman şehirlerinden denize çıkabilir.`
+        "Deniz çıkarması için hedef bir liman şehri olmalı. Konvoyu önce denizde ilerletip sonra liman şehrine sürükleyebilirsin."
       );
       return;
     }
 
+    if (
+      moveSurface === "air_transport" &&
+      !targetIsLand
+    ) {
+      setNotice(
+        "Nakliye uçağındaki kara birlikleri denize indirilemez. Kara noktasına veya şehre bırak."
+      );
+      return;
+    }
+
+    if (
+      (moveSurface === "naval" ||
+        moveSurface === "naval_transport") &&
+      sourceCity &&
+      !cityHasPort(sourceCity.code)
+    ) {
+      setNotice(
+        `${sourceCity.name} liman şehri değil. Deniz hareketi yalnızca limandan başlatılabilir.`
+      );
+      return;
+    }
+
+    const routeSurface:
+      | "land"
+      | "naval"
+      | "air" =
+      moveSurface === "naval_transport"
+        ? "naval"
+        : moveSurface === "air_transport"
+          ? "air"
+          : moveSurface;
+
     const routeAllowed =
-      moveSurface === "air" ||
+      routeSurface === "air" ||
       routeStaysOnSurface(
         world,
         sourcePoint,
         targetPoint,
-        moveSurface,
+        routeSurface,
         Boolean(
           sourceCity &&
-            moveSurface === "naval" &&
+            routeSurface === "naval" &&
             cityHasPort(sourceCity.code)
         ),
         Boolean(
-          targetIsFriendlyPort &&
-            moveSurface === "naval"
+          targetIsPort &&
+            routeSurface === "naval"
         )
       );
 
     if (!routeAllowed) {
       setNotice(
-        moveSurface === "land"
-          ? "Bu rota denizden geçiyor. Kara birlikleri su üzerinden taşınamaz."
-          : "Bu rota karadan geçiyor. Deniz birlikleri yalnızca denizde hareket edebilir."
+        routeSurface === "land"
+          ? "Bu rota denizden geçiyor. Kara birlikleri nakliye olmadan su üzerinden taşınamaz."
+          : "Bu rota karadan geçiyor. Deniz filosu kara üzerinden ilerleyemez."
       );
       return;
     }
 
+    const targetOwner = targetCity
+      ? cityOwners[targetCity.code] ?? null
+      : null;
+
     if (
       targetCity &&
-      cityOwners[targetCity.code] !== currentPlayer &&
-      moveSurface !== "land"
+      targetOwner !== currentPlayer &&
+      moveSurface === "naval"
     ) {
       setNotice(
-        moveSurface === "naval"
-          ? "Deniz birlikleri tek başına şehir işgal edemez. Düşman limanına kara/amfibi birlik göndermelisin."
-          : "Hava birlikleri tek başına şehir işgal edemez. Şehri ele geçirmek için kara birliği gönder."
+        "Savaş gemileri tek başına şehir işgal edemez. Çıkarma için kara birlikleriyle birlikte Destek Gemisi seç."
       );
       return;
     }
@@ -1295,8 +1356,6 @@ export default function App() {
       ? { ...(garrisons[sourceCity.code] ?? {}) }
       : { ...(sourceArmy?.units ?? {}) };
     const orders: MovementOrder[] = [];
-
-    const travelTurns = 1;
     const arrivalTurn = turn + 1;
 
     Object.entries(moveDraft).forEach(
@@ -1315,7 +1374,7 @@ export default function App() {
           player: currentPlayer,
           kind:
             targetCity &&
-            cityOwners[targetCity.code] !== currentPlayer
+            targetOwner !== currentPlayer
               ? "attack"
               : "move",
           fromCode: sourceCity?.code ?? null,
@@ -1376,12 +1435,23 @@ export default function App() {
       setSelectedCityCode(targetCity.code);
     }
 
+    const modeText =
+      moveSurface === "naval_transport"
+        ? "Deniz nakliyesi"
+        : moveSurface === "air_transport"
+          ? "Hava nakliyesi"
+          : moveSurface === "air" &&
+              targetCity &&
+              targetOwner !== currentPlayer
+            ? "Hava saldırısı"
+            : "Hareket";
+
     setNotice(
       targetCity
-        ? `${sourcePoint.label} → ${targetCity.name}: ${Math.round(
+        ? `${modeText}: ${sourcePoint.label} → ${targetCity.name} · ${Math.round(
             distanceKm
           ).toLocaleString("tr-TR")} km · varış Tur ${arrivalTurn}.`
-        : `${sourcePoint.label}: birlik haritadaki yeni konuma hareket ediyor · ${Math.round(
+        : `${modeText}: ${sourcePoint.label} → harita noktası · ${Math.round(
             distanceKm
           ).toLocaleString("tr-TR")} km · varış Tur ${arrivalTurn}.`
     );
