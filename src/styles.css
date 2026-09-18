@@ -1466,3 +1466,42 @@ button:disabled {
   cursor: not-allowed;
   opacity: 0.35;
 }
+
+
+.game-outcome-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  background: rgba(3, 8, 11, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.game-outcome-card {
+  width: min(430px, calc(100% - 36px));
+  padding: 24px;
+  text-align: center;
+  border-color: rgba(211, 190, 60, 0.5);
+  background:
+    linear-gradient(180deg, rgba(23, 29, 24, 0.98), rgba(6, 12, 15, 0.98));
+}
+
+.game-outcome-card h1 {
+  margin: 8px 0 10px;
+  color: #e6d652;
+  font-size: 36px;
+  letter-spacing: 0.08em;
+}
+
+.game-outcome-card p {
+  margin: 0 0 18px;
+  color: #c6d0d3;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.end-turn-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
