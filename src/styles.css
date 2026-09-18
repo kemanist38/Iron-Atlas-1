@@ -2776,3 +2776,55 @@ input:focus {
     width: auto;
   }
 }
+
+
+/* v1.9 transfer controls + tactical range visualization */
+.city-unit-row.movement {
+  grid-template-columns: 40px minmax(86px, 1fr) 70px 27px 34px 30px 27px;
+  gap: 4px;
+}
+
+.move-quantity-slider {
+  width: 70px;
+  height: 18px !important;
+  accent-color: #b9ad1e;
+}
+
+.move-all-button {
+  width: 34px !important;
+  font-size: 8px !important;
+  font-weight: 900;
+  color: #e7e2a7 !important;
+}
+
+.movement-range-layer {
+  pointer-events: none;
+}
+
+.movement-range-circle {
+  fill: rgba(44, 178, 71, .16);
+  stroke: rgba(59, 225, 89, .9);
+  stroke-width: 1.1;
+  vector-effect: non-scaling-stroke;
+}
+
+.movement-range-origin {
+  fill: #e8f0e6;
+  stroke: #35cf58;
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+@media (max-width: 900px) {
+  .city-command-window {
+    width: 390px;
+  }
+
+  .city-unit-row.movement {
+    grid-template-columns: 38px minmax(76px,1fr) 60px 26px 32px 28px 26px;
+  }
+
+  .move-quantity-slider {
+    width: 60px;
+  }
+}
