@@ -1400,3 +1400,19 @@ button:disabled {
     filter: drop-shadow(0 0 6px rgba(255, 225, 91, .95));
   }
 }
+
+
+.field-army-marker.selected circle {
+  stroke: #fff06a;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px rgba(255, 231, 83, 0.95));
+}
+
+.field-army-window {
+  top: 58px;
+  left: 28px;
+}
+
+.field-army-window .movement-list {
+  max-height: 430px;
+}
