@@ -229,8 +229,6 @@ const INITIAL_CITY_OWNERS = Object.fromEntries(
   ])
 ) as Record<string, string | null>;
 
-const victoryHoldTurns = 2;
-
 
 type HomelandOption = {
   code: string;
@@ -2524,8 +2522,11 @@ export default function App() {
                             sum + order.quantity,
                           0
                         );
+                      const effectiveUnit = strategiesEnabled
+                        ? applyStrategy(unit, selectedStrategy)
+                        : unit;
                       const cost = getProductionCost(
-                        unit,
+                        effectiveUnit,
                         1
                       );
 
