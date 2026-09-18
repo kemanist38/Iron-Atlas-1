@@ -742,6 +742,17 @@ export default function App() {
       lat: targetLat,
     });
 
+    if (distanceKm > activeMoveRangeKm) {
+      setNotice(
+        `Hareket reddedildi: hedef ${Math.round(
+          distanceKm
+        ).toLocaleString("tr-TR")} km uzakta. Seçili birliğin 1 tur menzili ${Math.round(
+          activeMoveRangeKm
+        ).toLocaleString("tr-TR")} km. Yeşil alanın içine bırak.`
+      );
+      return;
+    }
+
     const nearestCity = CITIES.reduce<{
       city: CityNode | null;
       distance: number;
@@ -769,12 +780,8 @@ export default function App() {
     const orders: MovementOrder[] = [];
     const skipped: string[] = [];
 
-    const groupRangeKm = Math.max(1, activeMoveRangeKm);
-    const travelTurns = Math.max(
-      1,
-      Math.ceil(distanceKm / groupRangeKm)
-    );
-    const arrivalTurn = turn + travelTurns;
+    const travelTurns = 1;
+    const arrivalTurn = turn + 1;
 
     Object.entries(moveDraft).forEach(
       ([unitId, requested]) => {
@@ -1394,14 +1401,25 @@ export default function App() {
                           y1={sy}
                           x2={previewX + offset}
                           y2={currentTarget.y}
-                          className="drag-preview-route"
+                          className={
+                            previewDistance > activeMoveRangeKm
+                              ? "drag-preview-route invalid"
+                              : "drag-preview-route"
+                          }
                         />
                         <g
                           transform={`translate(${previewX + offset} ${currentTarget.y}) scale(${1 / mapZoom})`}
-                          className="drop-preview-marker"
+                          className={
+                            previewDistance > activeMoveRangeKm
+                              ? "drop-preview-marker invalid"
+                              : "drop-preview-marker"
+                          }
                         >
                           <circle r="7" />
                           <text y="15">
+                            {previewDistance > activeMoveRangeKm
+                              ? "MENZİL DIŞI · "
+                              : ""}
                             {Math.round(
                               previewDistance
                             ).toLocaleString("tr-TR")} km
@@ -2359,8 +2377,8 @@ export default function App() {
         {moveSourceCode && (
           <div className="target-hint">
             <span>
-              BİRLİK İŞARETİNİ TUTUP SÜRÜKLE · {moveSelectionCount} birlik · 1 tur menzili{" "}
-              {Math.round(activeMoveRangeKm).toLocaleString("tr-TR")} km
+              BİRLİK İŞARETİNİ TUTUP SÜRÜKLE · {moveSelectionCount} birlik · sınır{" "}
+              {Math.round(activeMoveRangeKm).toLocaleString("tr-TR")} km · yeşil alan dışına bırakılamaz
             </span>
             <button
               onClick={() => {
