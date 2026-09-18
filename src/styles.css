@@ -1526,3 +1526,40 @@ button:disabled {
 .move-summary {
   align-items: center;
 }
+
+
+.field-army-marker .field-army-symbol {
+  font-size: 8px;
+}
+
+.field-army-marker .field-army-total {
+  font-size: 7px;
+}
+
+.field-army-marker.convoy circle {
+  stroke: #66d0e6;
+}
+
+.field-army-marker.convoy .field-army-symbol {
+  fill: #baf4ff;
+}
+
+.field-army-marker.airlift circle {
+  stroke: #d0b8ff;
+}
+
+.field-army-marker.airlift .field-army-symbol {
+  fill: #eadfff;
+}
+
+.field-army-marker.fleet circle {
+  stroke: #54a9ff;
+}
+
+.field-army-marker.air-group circle {
+  stroke: #c4d9ff;
+}
+
+.field-army-marker.land-group circle {
+  stroke: #77d497;
+}
