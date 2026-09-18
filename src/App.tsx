@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { UNIT_DEFINITIONS } from "./unitData";
+import { UNIT_ICON_BY_ID } from "./unitIcons";
 
 type Screen = "lobby" | "game";
 type Position = [number, number];
@@ -292,9 +293,17 @@ export default function App() {
                 className={"unit-row " + (selectedUnitId === unit.id ? "active" : "")}
                 onClick={() => setSelectedUnitId(unit.id)}
               >
-                <span className="unit-domain">
-                  {unit.domain === "land" ? "▰" : unit.domain === "air" ? "✈" : "◆"}
-                </span>
+                {UNIT_ICON_BY_ID[unit.id] ? (
+                  <img
+                    className="unit-catalog-icon"
+                    src={UNIT_ICON_BY_ID[unit.id]}
+                    alt={unit.name}
+                  />
+                ) : (
+                  <span className="unit-domain">
+                    {unit.domain === "land" ? "▰" : unit.domain === "air" ? "✈" : "◆"}
+                  </span>
+                )}
                 <span>{unit.name}</span>
                 <small>{unit.domain.toUpperCase()}</small>
               </button>
@@ -424,6 +433,14 @@ export default function App() {
 
           <div className="unit-detail">
             <span className="eyebrow">SELECTED UNIT</span>
+            {UNIT_ICON_BY_ID[selectedUnit.id] && (
+              <div className="selected-unit-art">
+                <img
+                  src={UNIT_ICON_BY_ID[selectedUnit.id]}
+                  alt={selectedUnit.name}
+                />
+              </div>
+            )}
             <h4>{selectedUnit.name}</h4>
             <div className="unit-stat-grid atwar-grid">
               <div><span>Saldırı</span><b>{selectedUnit.stats.attack}</b></div>
