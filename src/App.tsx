@@ -43,6 +43,18 @@ type ProductionOrder = {
   readyTurn: number;
 };
 
+type MovementOrder = {
+  id: number;
+  fromCode: string;
+  fromCity: string;
+  toCode: string;
+  toCity: string;
+  unitId: string;
+  unitName: string;
+  quantity: number;
+  distanceKm: number;
+};
+
 type Garrison = Record<string, Record<string, number>>;
 
 const MAP_URL =
@@ -135,6 +147,30 @@ function getProductionTurns(unit: UnitDefinition) {
   return Math.min(5, base + (unit.domain === "naval" ? 1 : 0));
 }
 
+function distanceKm(
+  a: { lat: number; lon: number },
+  b: { lat: number; lon: number }
+) {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const earthRadius = 6371;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+
+  const hav =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+
+  return Math.round(2 * earthRadius * Math.asin(Math.sqrt(hav)));
+}
+
+function movementRangeKm(unit: UnitDefinition) {
+  if (unit.domain === "air") return unit.stats.movement * 750;
+  if (unit.domain === "naval") return unit.stats.movement * 600;
+  return unit.stats.movement * 450;
+}
+
 function getProductionCost(unit: UnitDefinition, quantity: number) {
   const gold = unit.stats.cost * quantity;
   const steelRate =
@@ -165,6 +201,8 @@ export default function App() {
   const [notice, setNotice] = useState("Komuta ağı çevrimiçi.");
   const [selectedUnitId, setSelectedUnitId] = useState("infantry");
   const [productionQty, setProductionQty] = useState(1);
+  const [movementQty, setMovementQty] = useState(1);
+  const [moveSourceCode, setMoveSourceCode] = useState<string | null>(null);
   const [orderSequence, setOrderSequence] = useState(1);
 
   const [resources, setResources] = useState<Resources>({
@@ -173,6 +211,7 @@ export default function App() {
     oil: 620,
   });
   const [productionQueue, setProductionQueue] = useState<ProductionOrder[]>([]);
+  const [movementQueue, setMovementQueue] = useState<MovementOrder[]>([]);
   const [garrisons, setGarrisons] = useState<Garrison>(INITIAL_GARRISONS);
 
   const [world, setWorld] = useState<GeoFeature[]>([]);
@@ -283,36 +322,177 @@ export default function App() {
     );
   }
 
+  function startMovementOrder() {
+    if (!selectedCity) {
+      setNotice("Hareket emri için haritadaki bir şehir merkezini seç.");
+      return;
+    }
+
+    if (!ownsSelectedCountry) {
+      setNotice("Yalnızca kendi kontrolündeki bir şehirden hareket emri verebilirsin.");
+      return;
+    }
+
+    if (selectedUnit.domain === "naval") {
+      setNotice("Deniz birimleri için liman sistemi bir sonraki aşamada aktif olacak.");
+      return;
+    }
+
+    if (selectedUnitCount < movementQty) {
+      setNotice(`Bu şehirde yalnızca ${selectedUnitCount} ${selectedUnit.name} var.`);
+      return;
+    }
+
+    setMoveSourceCode(selectedCity.code);
+    setNotice(
+      `${selectedCity.name}: ${movementQty} × ${selectedUnit.name} seçildi. Şimdi haritadaki hedef şehre tıkla.`
+    );
+  }
+
+  function handleCityClick(city: (typeof cityNodes)[number]) {
+    if (!moveSourceCode) {
+      setSelectedId(city.code);
+      return;
+    }
+
+    const source = cityNodes.find((item) => item.code === moveSourceCode);
+    if (!source) {
+      setMoveSourceCode(null);
+      return;
+    }
+
+    if (source.code === city.code) {
+      setMoveSourceCode(null);
+      setSelectedId(city.code);
+      setNotice("Hareket emri iptal edildi.");
+      return;
+    }
+
+    const targetState = countryState[city.code];
+    if (targetState?.owner !== currentPlayer) {
+      setNotice(
+        "Bu sürümde hareket emirleri yalnızca dost şehirlere verilebilir. Saldırı çözümleme motoru sıradaki aşamada eklenecek."
+      );
+      return;
+    }
+
+    const km = distanceKm(source, city);
+    const maxKm = movementRangeKm(selectedUnit);
+
+    if (km > maxKm) {
+      setNotice(
+        `${selectedUnit.name} menzili yetersiz: ${km.toLocaleString("tr-TR")} km / maksimum ${maxKm.toLocaleString("tr-TR")} km.`
+      );
+      return;
+    }
+
+    const sourceCount = garrisons[source.code]?.[selectedUnit.id] ?? 0;
+    const alreadyQueued = movementQueue
+      .filter(
+        (order) =>
+          order.fromCode === source.code && order.unitId === selectedUnit.id
+      )
+      .reduce((sum, order) => sum + order.quantity, 0);
+
+    if (sourceCount - alreadyQueued < movementQty) {
+      setNotice("Aynı birliklerden daha fazlasını hareket kuyruğuna ekleyemezsin.");
+      return;
+    }
+
+    setMovementQueue((current) => [
+      ...current,
+      {
+        id: orderSequence,
+        fromCode: source.code,
+        fromCity: source.name,
+        toCode: city.code,
+        toCity: city.name,
+        unitId: selectedUnit.id,
+        unitName: selectedUnit.name,
+        quantity: movementQty,
+        distanceKm: km,
+      },
+    ]);
+
+    setOrderSequence((current) => current + 1);
+    setMoveSourceCode(null);
+    setSelectedId(city.code);
+    setNotice(
+      `${source.name} → ${city.name}: ${movementQty} × ${selectedUnit.name} hareket emri kuyruğa eklendi.`
+    );
+  }
+
   function advanceTurn() {
     const nextTurn = turn + 1;
     const completed = productionQueue.filter((order) => order.readyTurn <= nextTurn);
     const pending = productionQueue.filter((order) => order.readyTurn > nextTurn);
 
-    if (completed.length > 0) {
-      setGarrisons((current) => {
-        const next = { ...current };
+    const movedTexts: string[] = [];
 
-        completed.forEach((order) => {
-          next[order.countryId] = {
-            ...(next[order.countryId] ?? {}),
-            [order.unitId]:
-              (next[order.countryId]?.[order.unitId] ?? 0) + order.quantity,
-          };
-        });
+    setGarrisons((current) => {
+      const next: Garrison = {};
 
-        return next;
+      Object.entries(current).forEach(([code, units]) => {
+        next[code] = { ...units };
       });
 
-      const completedText = completed
-        .map((order) => `${order.cityName}: +${order.quantity} ${order.unitName}`)
-        .join(" · ");
+      movementQueue.forEach((order) => {
+        const available = next[order.fromCode]?.[order.unitId] ?? 0;
+        const moved = Math.min(available, order.quantity);
 
-      setNotice(`Tur ${nextTurn} başladı. Üretim tamamlandı: ${completedText}`);
-    } else {
-      setNotice(`Tur ${nextTurn} başladı. Üretim kuyruğu ilerletildi.`);
-    }
+        if (moved <= 0) return;
 
+        next[order.fromCode] = {
+          ...(next[order.fromCode] ?? {}),
+          [order.unitId]: available - moved,
+        };
+
+        next[order.toCode] = {
+          ...(next[order.toCode] ?? {}),
+          [order.unitId]: (next[order.toCode]?.[order.unitId] ?? 0) + moved,
+        };
+
+        movedTexts.push(
+          `${order.fromCity} → ${order.toCity}: ${moved} ${order.unitName}`
+        );
+      });
+
+      completed.forEach((order) => {
+        next[order.countryId] = {
+          ...(next[order.countryId] ?? {}),
+          [order.unitId]:
+            (next[order.countryId]?.[order.unitId] ?? 0) + order.quantity,
+        };
+      });
+
+      return next;
+    });
+
+    const completedText = completed
+      .map((order) => `${order.cityName}: +${order.quantity} ${order.unitName}`)
+      .join(" · ");
+
+    const incomeGold = cityNodes.reduce((sum, city) => {
+      return countryState[city.code]?.owner === currentPlayer ? sum + 80 : sum;
+    }, 0);
+
+    setResources((current) => ({
+      gold: current.gold + incomeGold,
+      steel: current.steel + Math.floor(incomeGold * 0.2),
+      oil: current.oil + Math.floor(incomeGold * 0.15),
+    }));
+
+    const messages = [
+      `Tur ${nextTurn} başladı.`,
+      movedTexts.length ? `Hareket: ${movedTexts.join(" · ")}` : "",
+      completedText ? `Üretim: ${completedText}` : "",
+      `Şehir geliri: +${incomeGold} Altın`,
+    ].filter(Boolean);
+
+    setNotice(messages.join(" | "));
     setProductionQueue(pending);
+    setMovementQueue([]);
+    setMoveSourceCode(null);
     setTurn(nextTurn);
   }
 
@@ -477,7 +657,9 @@ export default function App() {
               <span className="eyebrow">GLOBAL THEATER</span>
               <h3>Gerçek Dünya Operasyon Haritası</h3>
             </div>
-            <span className="map-tip">Ülke / şehir seç → üretim yap</span>
+            <span className="map-tip">
+              {moveSourceCode ? "HEDEF ŞEHİR SEÇ" : "Şehir seç → üretim / hareket"}
+            </span>
           </div>
 
           <div className="map-wrap">
@@ -533,6 +715,22 @@ export default function App() {
                   );
                 })}
 
+                {movementQueue.map((order) => {
+                  const from = cityNodes.find((city) => city.code === order.fromCode);
+                  const to = cityNodes.find((city) => city.code === order.toCode);
+                  if (!from || !to) return null;
+
+                  const [x1, y1] = project([from.lon, from.lat]);
+                  const [x2, y2] = project([to.lon, to.lat]);
+
+                  return (
+                    <g className="movement-route" key={order.id}>
+                      <line x1={x1} y1={y1} x2={x2} y2={y2} />
+                      <circle cx={x2} cy={y2} r="5" />
+                    </g>
+                  );
+                })}
+
                 {cityNodes.map((city) => {
                   const [x, y] = project([city.lon, city.lat]);
                   const primaryUnitId = cityPrimaryUnits[city.code];
@@ -545,7 +743,7 @@ export default function App() {
                     <g
                       className="city"
                       key={city.name}
-                      onClick={() => setSelectedId(city.code)}
+                      onClick={() => handleCityClick(city)}
                     >
                       <circle cx={x} cy={y} r="3.7" />
                       <text x={x + 6} y={y - 5}>
@@ -717,15 +915,80 @@ export default function App() {
             </div>
           </div>
 
+          <div className="movement-panel">
+            <div className="movement-head">
+              <div>
+                <span className="eyebrow">MOVEMENT ORDERS</span>
+                <h4>{moveSourceCode ? "Hedef Şehir Seç" : "Birlik Taşı"}</h4>
+              </div>
+              {moveSourceCode && (
+                <button
+                  className="cancel-move"
+                  onClick={() => {
+                    setMoveSourceCode(null);
+                    setNotice("Hareket emri iptal edildi.");
+                  }}
+                >
+                  İPTAL
+                </button>
+              )}
+            </div>
+
+            <div className="garrison-count">
+              <span>{selectedCity?.name ?? "Şehir seç"} · {selectedUnit.name}</span>
+              <b>{selectedUnitCount.toLocaleString("tr-TR")}</b>
+            </div>
+
+            <div className="qty-row movement-qty">
+              {[1, 5, 10, 25, 100].map((qty) => (
+                <button
+                  key={qty}
+                  className={movementQty === qty ? "active" : ""}
+                  onClick={() => setMovementQty(qty)}
+                >
+                  ×{qty}
+                </button>
+              ))}
+            </div>
+
+            <div className="movement-range">
+              <span>Maks. hareket menzili</span>
+              <b>{movementRangeKm(selectedUnit).toLocaleString("tr-TR")} km</b>
+            </div>
+
+            <button
+              className="move-order-button"
+              disabled={
+                !selectedCity ||
+                !ownsSelectedCountry ||
+                selectedUnitCount < movementQty ||
+                selectedUnit.domain === "naval"
+              }
+              onClick={startMovementOrder}
+            >
+              {moveSourceCode ? "HARİTADAN HEDEF SEÇ" : "→ HAREKET EMRİ VER"}
+            </button>
+
+            <div className="queue-box movement-queue-box">
+              <span className="eyebrow">BEKLEYEN HAREKETLER</span>
+              {movementQueue.length === 0 ? (
+                <small>Hareket emri yok.</small>
+              ) : (
+                movementQueue.map((order) => (
+                  <div className="queue-order" key={order.id}>
+                    <div>
+                      <strong>{order.quantity} × {order.unitName}</strong>
+                      <small>{order.fromCity} → {order.toCity}</small>
+                    </div>
+                    <b>{order.distanceKm.toLocaleString("tr-TR")} km</b>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           <button className="attack" onClick={claimSelected}>
             ⚔ BÖLGEYİ ELE GEÇİR
-          </button>
-
-          <button
-            className="secondary"
-            onClick={() => setNotice(`${selectedName} için hareket emri oluşturuldu.`)}
-          >
-            → HAREKET EMRİ
           </button>
 
           <div className="notice">{notice}</div>
