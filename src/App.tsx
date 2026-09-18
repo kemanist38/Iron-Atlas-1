@@ -35,6 +35,7 @@ type Resources = {
 
 type ProductionOrder = {
   id: number;
+  player: string;
   countryId: string;
   cityName: string;
   unitId: string;
@@ -57,6 +58,11 @@ type MovementOrder = {
 };
 
 type Garrison = Record<string, Record<string, number>>;
+
+type CapitalHoldState = Record<
+  string,
+  { holder: string | null; turns: number }
+>;
 
 type CityNode = {
   code: string;
@@ -218,7 +224,14 @@ const cityNodes: CityNode[] = [
   { code: "AUS-BNE", countryCode: "AUS", name: "Brisbane", lon: 153.03, lat: -27.47, isCapital: false, recruitCapacity: 1, income: 540, growth: 37, dx: 8, dy: 12 },
 ];
 
+const INITIAL_CITY_OWNERS = Object.fromEntries(
+  cityNodes.map((city) => [
+    city.code,
+    INITIAL_COUNTRIES[city.countryCode]?.owner ?? null,
+  ])
+) as Record<string, string | null>;
 
+const CAPITAL_HOLD_TURNS_REQUIRED = 2;
 
 type RadarStack = {
   kind: "infantry" | "tank" | "air" | "naval";
@@ -403,6 +416,10 @@ export default function App() {
   const [productionQueue, setProductionQueue] = useState<ProductionOrder[]>([]);
   const [movementQueue, setMovementQueue] = useState<MovementOrder[]>([]);
   const [garrisons, setGarrisons] = useState<Garrison>(INITIAL_GARRISONS);
+  const [cityOwners, setCityOwners] =
+    useState<Record<string, string | null>>(INITIAL_CITY_OWNERS);
+  const [capitalHoldTurns, setCapitalHoldTurns] =
+    useState<CapitalHoldState>({});
 
   const [world, setWorld] = useState<GeoFeature[]>([]);
   const [mapError, setMapError] = useState("");
@@ -447,13 +464,23 @@ export default function App() {
 
   const selectedCity = cityNodes.find((city) => city.code === selectedCityId);
   const currentPlayer = commander.trim() || "Atlas";
-  const ownsSelectedCountry = selectedState.owner === currentPlayer;
+  const selectedCityOwner = selectedCity
+    ? cityOwners[selectedCity.code] ?? null
+    : null;
+  const ownsSelectedCity = selectedCityOwner === currentPlayer;
   const productionTurns = getProductionTurns(selectedUnit);
   const productionCost = getProductionCost(selectedUnit, productionQty);
   const selectedGarrison = garrisons[selectedCity?.code ?? ""] ?? {};
   const selectedUnitCount = selectedGarrison[selectedUnit.id] ?? 0;
   const selectedCountryRecruitCapacity = cityNodes
     .filter((city) => city.countryCode === selectedId)
+    .reduce((sum, city) => sum + city.recruitCapacity, 0);
+  const controlledCountryRecruitCapacity = cityNodes
+    .filter(
+      (city) =>
+        city.countryCode === selectedId &&
+        cityOwners[city.code] === currentPlayer
+    )
     .reduce((sum, city) => sum + city.recruitCapacity, 0);
   const selectedCityActiveOrders = selectedCity
     ? productionQueue.filter((order) => order.countryId === selectedCity.code).length
@@ -540,8 +567,8 @@ export default function App() {
       return;
     }
 
-    if (!ownsSelectedCountry) {
-      setNotice("Yalnızca kontrol ettiğin ülkelerde üretim yapabilirsin.");
+    if (!ownsSelectedCity) {
+      setNotice("Yalnızca kontrol ettiğin şehirlerde üretim yapabilirsin.");
       return;
     }
 
@@ -580,6 +607,7 @@ export default function App() {
       ...current,
       {
         id: orderSequence,
+        player: currentPlayer,
         countryId: selectedCity.code,
         cityName: selectedCity.name,
         unitId: selectedUnit.id,
@@ -601,7 +629,7 @@ export default function App() {
       return;
     }
 
-    if (!ownsSelectedCountry) {
+    if (!ownsSelectedCity) {
       setNotice("Yalnızca kendi kontrolündeki bir şehirden hareket emri verebilirsin.");
       return;
     }
@@ -643,9 +671,9 @@ export default function App() {
       return;
     }
 
-    const targetState = countryState[city.countryCode];
+    const targetCityOwner = cityOwners[city.code] ?? null;
     const orderKind: "move" | "attack" =
-      targetState?.owner === currentPlayer ? "move" : "attack";
+      targetCityOwner === currentPlayer ? "move" : "attack";
 
     const km = distanceKm(source, city);
     const maxKm = movementRangeKm(selectedUnit);
@@ -1129,7 +1157,9 @@ export default function App() {
                       return (
                         <g
                           className={
-                            "city city-fixed-marker " +
+                            "city city-fixed-marker city-owner-" +
+                            ((cityOwners[city.code] ?? "Neutral").toLowerCase()) +
+                            " " +
                             (isSelectedCountry ? "selected-country-city " : "") +
                             (isSelectedCity ? "selected-city" : "")
                           }
@@ -1322,9 +1352,24 @@ export default function App() {
           <h3>{selectedName}</h3>
 
           <div className="intel-row">
-            <span>Sahip</span>
+            <span>Ülke kontrolü</span>
             <b>{selectedState.owner ?? "Tarafsız"}</b>
           </div>
+          {selectedCity && (
+            <div className="intel-row">
+              <span>{selectedCity.name} sahibi</span>
+              <b>{selectedCityOwner ?? "Tarafsız"}</b>
+            </div>
+          )}
+          {selectedCity?.isCapital && (
+            <div className="intel-row capital-control-row">
+              <span>Başkent kontrolü</span>
+              <b>
+                {capitalHoldTurns[selectedCity.countryCode]?.turns ?? 0}/
+                {CAPITAL_HOLD_TURNS_REQUIRED} tur
+              </b>
+            </div>
+          )}
           <div className="intel-row">
             <span>Birlik</span>
             <b>{selectedState.troops}</b>
@@ -1386,8 +1431,8 @@ export default function App() {
                 <span className="eyebrow">PRODUCTION</span>
                 <h4>{selectedCity?.name ?? "Üretim Merkezi Yok"}</h4>
               </div>
-              <span className={"ownership-pill " + (ownsSelectedCountry ? "owned" : "")}>
-                {ownsSelectedCountry ? "SENİN" : "KİLİTLİ"}
+              <span className={"ownership-pill " + (ownsSelectedCity ? "owned" : "")}>
+                {ownsSelectedCity ? "SENİN" : "KİLİTLİ"}
               </span>
             </div>
 
@@ -1403,8 +1448,10 @@ export default function App() {
                   <b>{selectedCityActiveOrders}/{selectedCity.recruitCapacity}</b>
                 </div>
                 <div>
-                  <span>Ülke toplam kapasitesi</span>
-                  <b>{selectedCountryRecruitCapacity}</b>
+                  <span>Kontrol edilen / toplam</span>
+                  <b>
+                    {controlledCountryRecruitCapacity}/{selectedCountryRecruitCapacity}
+                  </b>
                 </div>
               </div>
             )}
@@ -1441,7 +1488,7 @@ export default function App() {
 
             <button
               className="produce-button"
-              disabled={!selectedCity || !ownsSelectedCountry}
+              disabled={!selectedCity || !ownsSelectedCity}
               onClick={queueProduction}
             >
               + ÜRETİME AL
@@ -1513,7 +1560,7 @@ export default function App() {
               className="move-order-button"
               disabled={
                 !selectedCity ||
-                !ownsSelectedCountry ||
+                !ownsSelectedCity ||
                 selectedUnitCount < movementQty ||
                 selectedUnit.domain === "naval"
               }
