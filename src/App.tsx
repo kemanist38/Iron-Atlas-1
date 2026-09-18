@@ -108,6 +108,31 @@ function geometryToPath(geometry: any): string {
   return "";
 }
 
+
+const GEO_NAME_TO_CODE: Record<string, string> = {
+  "Turkey": "TUR",
+  "Germany": "DEU",
+  "France": "FRA",
+  "United Kingdom": "GBR",
+  "Italy": "ITA",
+  "Spain": "ESP",
+  "Poland": "POL",
+  "United States of America": "USA",
+  "United States": "USA",
+  "Russia": "RUS",
+  "China": "CHN",
+  "Japan": "JPN",
+  "India": "IND",
+  "Brazil": "BRA",
+  "Australia": "AUS",
+};
+
+function featureCountryCode(feature: WorldFeature) {
+  const id = String(feature.id ?? "");
+  if (COUNTRY_BY_CODE[id]) return id;
+  return GEO_NAME_TO_CODE[feature.properties?.name ?? ""] ?? id;
+}
+
 function wrapWorldX(value: number) {
   return ((value % WORLD_WIDTH) + WORLD_WIDTH) % WORLD_WIDTH;
 }
@@ -401,7 +426,6 @@ export default function App() {
       centerY: mapCenter.y,
       moved: false,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function handleMapMove(
@@ -432,16 +456,7 @@ export default function App() {
     });
   }
 
-  function handleMapUp(
-    event: ReactPointerEvent<SVGSVGElement>
-  ) {
-    if (
-      event.currentTarget.hasPointerCapture(event.pointerId)
-    ) {
-      event.currentTarget.releasePointerCapture(
-        event.pointerId
-      );
-    }
+  function handleMapUp() {
     dragRef.current = null;
   }
 
@@ -903,6 +918,7 @@ export default function App() {
         onPointerMove={handleMapMove}
         onPointerUp={handleMapUp}
         onPointerCancel={handleMapUp}
+        onPointerLeave={handleMapUp}
         onWheel={handleWheel}
       >
         <rect
@@ -927,9 +943,10 @@ export default function App() {
 
             <g transform={`translate(${offset} 0)`}>
               {world.map((feature, index) => {
-                const code = String(
+                const rawCode = String(
                   feature.id ?? "country-" + index
                 );
+                const code = featureCountryCode(feature);
                 const supported =
                   Boolean(COUNTRY_BY_CODE[code]);
                 const isSelected =
@@ -940,7 +957,7 @@ export default function App() {
                   countryOwners[code] ?? null;
                 return (
                   <path
-                    key={code + "-" + offset}
+                    key={rawCode + "-" + offset}
                     d={geometryToPath(feature.geometry)}
                     className={
                       "country-shape " +
