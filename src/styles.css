@@ -712,3 +712,56 @@ input:focus {
 .map-unit-marker image {
   pointer-events: none;
 }
+
+
+/* v0.6 layout cleanup */
+.game-layout {
+  grid-template-columns: 220px minmax(0, 1fr) 320px;
+}
+
+.unit-catalog {
+  scrollbar-width: thin;
+  scrollbar-color: #35536f #0a141f;
+}
+
+.unit-catalog::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.unit-catalog::-webkit-scrollbar-track {
+  background: #0a141f;
+}
+
+.unit-catalog::-webkit-scrollbar-thumb {
+  background: #35536f;
+  border-radius: 10px;
+}
+
+.intel {
+  overflow-y: auto;
+}
+
+.unit-detail {
+  overflow: hidden;
+}
+
+.atwar-grid > div {
+  min-width: 0;
+}
+
+.map-unit-marker {
+  pointer-events: none;
+}
+
+.map-unit-marker rect {
+  fill: rgba(5, 12, 20, .94);
+  stroke: #315b7c;
+  stroke-width: .8;
+}
+
+@media (max-width: 1250px) {
+  .game-layout {
+    grid-template-columns: 210px minmax(0, 1fr) 290px;
+  }
+}
