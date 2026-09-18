@@ -54,13 +54,13 @@ const players = [
 ];
 
 const cityNodes = [
-  { name: "Ankara", lon: 32.86, lat: 39.93, code: "TUR" },
-  { name: "Berlin", lon: 13.4, lat: 52.52, code: "DEU" },
-  { name: "Moskova", lon: 37.62, lat: 55.75, code: "RUS" },
-  { name: "Paris", lon: 2.35, lat: 48.86, code: "FRA" },
-  { name: "Washington", lon: -77.04, lat: 38.9, code: "USA" },
-  { name: "Pekin", lon: 116.4, lat: 39.9, code: "CHN" },
-  { name: "Tokyo", lon: 139.69, lat: 35.68, code: "JPN" },
+  { name: "Ankara", lon: 32.86, lat: 39.93, code: "TUR", dx: -5, dy: 13 },
+  { name: "Berlin", lon: 13.4, lat: 52.52, code: "DEU", dx: 8, dy: 10 },
+  { name: "Moskova", lon: 37.62, lat: 55.75, code: "RUS", dx: 10, dy: -2 },
+  { name: "Paris", lon: 2.35, lat: 48.86, code: "FRA", dx: -34, dy: 11 },
+  { name: "Washington", lon: -77.04, lat: 38.9, code: "USA", dx: 7, dy: 12 },
+  { name: "Pekin", lon: 116.4, lat: 39.9, code: "CHN", dx: 8, dy: 12 },
+  { name: "Tokyo", lon: 139.69, lat: 35.68, code: "JPN", dx: 10, dy: 12 },
 ];
 
 const cityPrimaryUnits: Record<string, { unitId: string; count: number }> = {
@@ -410,16 +410,25 @@ export default function App() {
 
                       {icon && primary && (
                         <g className="map-unit-marker">
-                          <rect x={x - 16} y={y + 7} width="42" height="28" rx="5" />
+                          <rect
+                            x={x + city.dx}
+                            y={y + city.dy}
+                            width="36"
+                            height="24"
+                            rx="5"
+                          />
                           <image
                             href={icon}
-                            x={x - 13}
-                            y={y + 9}
-                            width="22"
-                            height="22"
+                            x={x + city.dx + 2}
+                            y={y + city.dy + 2}
+                            width="18"
+                            height="18"
                             preserveAspectRatio="xMidYMid meet"
                           />
-                          <text x={x + 13} y={y + 25}>
+                          <text
+                            x={x + city.dx + 27}
+                            y={y + city.dy + 16}
+                          >
                             {primary.count}
                           </text>
                         </g>
