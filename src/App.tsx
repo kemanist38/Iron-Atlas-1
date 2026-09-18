@@ -48,7 +48,10 @@ type MovementOrder = {
   id: number;
   player: string;
   kind: "move" | "attack";
-  fromCode: string;
+  fromCode: string | null;
+  fromArmyId: number | null;
+  sourceX: number;
+  sourceY: number;
   targetX: number;
   targetY: number;
   targetCityCode: string | null;
@@ -125,6 +128,120 @@ function geometryToPath(geometry: any): string {
       .join("");
   }
   return "";
+}
+
+function pointInRing(
+  lon: number,
+  lat: number,
+  ring: number[][]
+) {
+  let inside = false;
+  for (
+    let i = 0, j = ring.length - 1;
+    i < ring.length;
+    j = i++
+  ) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    const intersects =
+      yi > lat !== yj > lat &&
+      lon <
+        ((xj - xi) * (lat - yi)) /
+          Math.max(1e-12, yj - yi) +
+          xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function geometryContainsPoint(
+  geometry: any,
+  lon: number,
+  lat: number
+) {
+  const polygonContains = (polygon: number[][][]) => {
+    if (!polygon.length) return false;
+    if (!pointInRing(lon, lat, polygon[0])) return false;
+    for (let index = 1; index < polygon.length; index += 1) {
+      if (pointInRing(lon, lat, polygon[index])) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  if (geometry?.type === "Polygon") {
+    return polygonContains(geometry.coordinates);
+  }
+  if (geometry?.type === "MultiPolygon") {
+    return geometry.coordinates.some(polygonContains);
+  }
+  return false;
+}
+
+function isLandPoint(
+  features: WorldFeature[],
+  lon: number,
+  lat: number
+) {
+  return features.some((feature) =>
+    geometryContainsPoint(feature.geometry, lon, lat)
+  );
+}
+
+function isCoastalPoint(
+  features: WorldFeature[],
+  lon: number,
+  lat: number
+) {
+  const offsets = [
+    [1.1, 0],
+    [-1.1, 0],
+    [0, 1.1],
+    [0, -1.1],
+    [0.8, 0.8],
+    [-0.8, 0.8],
+    [0.8, -0.8],
+    [-0.8, -0.8],
+  ];
+  return offsets.some(
+    ([dx, dy]) => !isLandPoint(features, lon + dx, lat + dy)
+  );
+}
+
+function routeStaysOnSurface(
+  features: WorldFeature[],
+  source: { lon: number; lat: number },
+  target: { lon: number; lat: number },
+  surface: "land" | "naval" | "air",
+  coastalDeparture = false
+) {
+  if (surface === "air") return true;
+
+  let dLon = target.lon - source.lon;
+  if (dLon > 180) dLon -= 360;
+  if (dLon < -180) dLon += 360;
+
+  const steps = 18;
+  const startStep =
+    surface === "naval" && coastalDeparture ? 4 : 1;
+
+  for (let step = startStep; step <= steps; step += 1) {
+    const ratio = step / steps;
+    let lon = source.lon + dLon * ratio;
+    if (lon > 180) lon -= 360;
+    if (lon < -180) lon += 360;
+    const lat =
+      source.lat + (target.lat - source.lat) * ratio;
+    const isLand = isLandPoint(features, lon, lat);
+
+    if (surface === "land" && !isLand) return false;
+    if (surface === "naval" && isLand) return false;
+  }
+
+  return true;
 }
 
 
@@ -327,6 +444,14 @@ export default function App() {
     MovementOrder[]
   >([]);
   const [fieldArmies, setFieldArmies] = useState<FieldArmy[]>([]);
+  const [selectedFieldArmyId, setSelectedFieldArmyId] = useState<
+    number | null
+  >(null);
+  const [fieldArmyPanelOpen, setFieldArmyPanelOpen] =
+    useState(false);
+  const [moveSourceArmyId, setMoveSourceArmyId] = useState<
+    number | null
+  >(null);
   const [moveDragTarget, setMoveDragTarget] = useState<{
     x: number;
     y: number;
@@ -419,6 +544,10 @@ export default function App() {
     (city) => city.isCapital
   );
 
+  const selectedFieldArmy = selectedFieldArmyId
+    ? fieldArmies.find((army) => army.id === selectedFieldArmyId)
+    : undefined;
+
   const moveSelectionEntries = Object.entries(moveDraft).filter(
     ([, quantity]) => quantity > 0
   );
@@ -426,16 +555,102 @@ export default function App() {
     (sum, [, quantity]) => sum + quantity,
     0
   );
-  const activeMoveSource = moveSourceCode
+  const selectedMoveDomains = new Set(
+    moveSelectionEntries
+      .map(([unitId]) => UNIT_BY_ID[unitId]?.domain)
+      .filter(Boolean)
+  );
+  const moveSurface: "land" | "naval" | "air" | "mixed" =
+    selectedMoveDomains.has("land") &&
+    selectedMoveDomains.has("naval")
+      ? "mixed"
+      : selectedMoveDomains.has("land")
+        ? "land"
+        : selectedMoveDomains.has("naval")
+          ? "naval"
+          : "air";
+
+  const activeMoveSourceCity = moveSourceCode
     ? CITIES.find((city) => city.code === moveSourceCode)
     : undefined;
+  const activeMoveSourceArmy = moveSourceArmyId
+    ? fieldArmies.find((army) => army.id === moveSourceArmyId)
+    : undefined;
+
+  const activeMoveSource = activeMoveSourceCity
+    ? (() => {
+        const [x, y] = project([
+          activeMoveSourceCity.lon,
+          activeMoveSourceCity.lat,
+        ]);
+        return {
+          sourceKind: "city" as const,
+          id: activeMoveSourceCity.code,
+          label: activeMoveSourceCity.name,
+          x,
+          y,
+          lon: activeMoveSourceCity.lon,
+          lat: activeMoveSourceCity.lat,
+        };
+      })()
+    : activeMoveSourceArmy
+      ? (() => {
+          const [lon, lat] = unproject([
+            activeMoveSourceArmy.x,
+            activeMoveSourceArmy.y,
+          ]);
+          return {
+            sourceKind: "army" as const,
+            id: activeMoveSourceArmy.id,
+            label: "Saha Birliği",
+            x: activeMoveSourceArmy.x,
+            y: activeMoveSourceArmy.y,
+            lon,
+            lat,
+          };
+        })()
+      : undefined;
+
   const previewMoveSource =
     activeMoveSource ??
     (cityPanelOpen &&
     cityTab === "movement" &&
-    selectedCityOwner === currentPlayer
-      ? selectedCity
-      : undefined);
+    selectedCityOwner === currentPlayer &&
+    selectedCity
+      ? (() => {
+          const [x, y] = project([
+            selectedCity.lon,
+            selectedCity.lat,
+          ]);
+          return {
+            sourceKind: "city" as const,
+            id: selectedCity.code,
+            label: selectedCity.name,
+            x,
+            y,
+            lon: selectedCity.lon,
+            lat: selectedCity.lat,
+          };
+        })()
+      : fieldArmyPanelOpen &&
+          selectedFieldArmy?.player === currentPlayer
+        ? (() => {
+            const [lon, lat] = unproject([
+              selectedFieldArmy.x,
+              selectedFieldArmy.y,
+            ]);
+            return {
+              sourceKind: "army" as const,
+              id: selectedFieldArmy.id,
+              label: "Saha Birliği",
+              x: selectedFieldArmy.x,
+              y: selectedFieldArmy.y,
+              lon,
+              lat,
+            };
+          })()
+        : undefined);
+
   const activeMoveRangeKm = useMemo(() => {
     if (!moveSelectionEntries.length) return 0;
     const ranges = moveSelectionEntries
@@ -450,27 +665,47 @@ export default function App() {
     (activeMoveRangeKm / 40075) * WORLD_WIDTH;
 
   useEffect(() => {
+    if (screen !== "game") return;
+
     if (
-      screen !== "game" ||
-      !cityPanelOpen ||
-      cityTab !== "movement" ||
-      !selectedCity ||
-      selectedCityOwner !== currentPlayer
+      cityPanelOpen &&
+      cityTab === "movement" &&
+      selectedCity &&
+      selectedCityOwner === currentPlayer
     ) {
+      if (moveSelectionCount > 0) {
+        setMoveSourceCode(selectedCity.code);
+        setMoveSourceArmyId(null);
+        setNotice(
+          `${selectedCity.name}: ${moveSelectionCount} birlik seçildi. Sarı birlik işaretini yeşil alan içinde sürükle.`
+        );
+      } else if (
+        moveSourceCode === selectedCity.code &&
+        !moveDragRef.current
+      ) {
+        setMoveSourceCode(null);
+        setMoveDragTarget(null);
+      }
       return;
     }
 
-    if (moveSelectionCount > 0) {
-      setMoveSourceCode(selectedCity.code);
-      setNotice(
-        `${selectedCity.name}: ${moveSelectionCount} birlik seçildi. Şehrin üzerindeki sarı birlik işaretini tutup yeşil alan içinde istediğin noktaya sürükle.`
-      );
-    } else if (
-      moveSourceCode === selectedCity.code &&
-      !moveDragRef.current
+    if (
+      fieldArmyPanelOpen &&
+      selectedFieldArmy?.player === currentPlayer
     ) {
-      setMoveSourceCode(null);
-      setMoveDragTarget(null);
+      if (moveSelectionCount > 0) {
+        setMoveSourceArmyId(selectedFieldArmy.id);
+        setMoveSourceCode(null);
+        setNotice(
+          `Saha birliği: ${moveSelectionCount} birlik seçildi. Sarı birlik işaretini yeşil alan içinde tekrar sürükleyebilirsin.`
+        );
+      } else if (
+        moveSourceArmyId === selectedFieldArmy.id &&
+        !moveDragRef.current
+      ) {
+        setMoveSourceArmyId(null);
+        setMoveDragTarget(null);
+      }
     }
   }, [
     screen,
@@ -478,6 +713,8 @@ export default function App() {
     cityTab,
     selectedCityCode,
     selectedCityOwner,
+    fieldArmyPanelOpen,
+    selectedFieldArmyId,
     currentPlayer,
     moveSelectionCount,
   ]);
@@ -581,7 +818,10 @@ export default function App() {
   function handleMapUp(
     event: ReactPointerEvent<SVGSVGElement>
   ) {
-    if (moveDragRef.current && moveSourceCode) {
+    if (
+      moveDragRef.current &&
+      (moveSourceCode || moveSourceArmyId)
+    ) {
       const target = moveDragTarget ?? pointerWorldPosition(event);
       issueFreeMovement(target.x, target.y);
       moveDragRef.current = null;
@@ -644,6 +884,9 @@ export default function App() {
     setProductionQueue([]);
     setMovementQueue([]);
     setFieldArmies([]);
+    setSelectedFieldArmyId(null);
+    setFieldArmyPanelOpen(false);
+    setMoveSourceArmyId(null);
     setCapitalHolds({});
     setResources({
       gold: startingMoney - country.purchasePrice,
@@ -659,7 +902,7 @@ export default function App() {
       setSelectedCityCode(capital.code);
       const [x, y] = project([capital.lon, capital.lat]);
       setMapCenter({ x, y });
-      setMapZoom(2.45);
+      setMapZoom(2.7);
     }
     setCityPanelOpen(false);
     setMoveSourceCode(null);
@@ -730,12 +973,14 @@ export default function App() {
 
 
   function handleCityClick(city: CityNode) {
-    if (moveSourceCode) {
+    if (moveSourceCode || moveSourceArmyId) {
       setNotice(
-        "Serbest hareket modundasın. Kaynak şehrin üzerindeki birlik işaretini tutup hedef noktaya sürükle."
+        "Serbest hareket modundasın. Sarı birlik işaretini tutup yeşil alan içinde hedef noktaya sürükle."
       );
       return;
     }
+    setSelectedFieldArmyId(null);
+    setFieldArmyPanelOpen(false);
     setSelectedCountry(city.countryCode);
     setSelectedCityCode(city.code);
     setCityTab("production");
@@ -744,25 +989,115 @@ export default function App() {
   }
 
   function issueFreeMovement(targetXRaw: number, targetY: number) {
-    const source = CITIES.find(
-      (city) => city.code === moveSourceCode
-    );
-    if (!source) return;
+    const sourceCity = moveSourceCode
+      ? CITIES.find((city) => city.code === moveSourceCode)
+      : undefined;
+    const sourceArmy = moveSourceArmyId
+      ? fieldArmies.find((army) => army.id === moveSourceArmyId)
+      : undefined;
+
+    if (!sourceCity && !sourceArmy) return;
+
+    const sourcePoint = sourceCity
+      ? (() => {
+          const [x, y] = project([
+            sourceCity.lon,
+            sourceCity.lat,
+          ]);
+          return {
+            x,
+            y,
+            lon: sourceCity.lon,
+            lat: sourceCity.lat,
+            label: sourceCity.name,
+          };
+        })()
+      : (() => {
+          const [lon, lat] = unproject([
+            sourceArmy!.x,
+            sourceArmy!.y,
+          ]);
+          return {
+            x: sourceArmy!.x,
+            y: sourceArmy!.y,
+            lon,
+            lat,
+            label: "Saha Birliği",
+          };
+        })();
 
     const targetX = wrapWorldX(targetXRaw);
     const [targetLon, targetLat] = unproject([targetX, targetY]);
-    const distanceKm = haversinePoints(source, {
-      lon: targetLon,
-      lat: targetLat,
-    });
+    const targetPoint = { lon: targetLon, lat: targetLat };
+    const distanceKm = haversinePoints(
+      sourcePoint,
+      targetPoint
+    );
 
     if (distanceKm > activeMoveRangeKm) {
       setNotice(
         `Hareket reddedildi: hedef ${Math.round(
           distanceKm
-        ).toLocaleString("tr-TR")} km uzakta. Seçili birliğin 1 tur menzili ${Math.round(
+        ).toLocaleString("tr-TR")} km uzakta. Birliğin menzili ${Math.round(
           activeMoveRangeKm
-        ).toLocaleString("tr-TR")} km. Yeşil alanın içine bırak.`
+        ).toLocaleString("tr-TR")} km.`
+      );
+      return;
+    }
+
+    if (moveSurface === "mixed") {
+      setNotice(
+        "Kara ve deniz birlikleri aynı hareket grubunda taşınamaz. Ayrı ayrı hareket ettir."
+      );
+      return;
+    }
+
+    const targetIsLand = isLandPoint(
+      world,
+      targetLon,
+      targetLat
+    );
+
+    if (moveSurface === "land" && !targetIsLand) {
+      setNotice(
+        "Kara birlikleri denize bırakılamaz. Yeşil alan içindeki kara bölgesine bırak."
+      );
+      return;
+    }
+
+    if (moveSurface === "naval" && targetIsLand) {
+      setNotice(
+        "Deniz birlikleri karaya bırakılamaz. Birliği deniz alanına bırak."
+      );
+      return;
+    }
+
+    if (
+      moveSurface === "naval" &&
+      sourceCity &&
+      !isCoastalPoint(world, sourceCity.lon, sourceCity.lat)
+    ) {
+      setNotice(
+        `${sourceCity.name} kıyı şehri değil. Deniz birimleri yalnızca kıyı/liman şehirlerinden denize çıkabilir.`
+      );
+      return;
+    }
+
+    const routeAllowed =
+      moveSurface === "air" ||
+      routeStaysOnSurface(
+        world,
+        sourcePoint,
+        targetPoint,
+        moveSurface,
+        Boolean(sourceCity && moveSurface === "naval")
+      );
+
+    if (!routeAllowed) {
+      setNotice(
+        moveSurface === "land"
+          ? "Bu rota denizden geçiyor. Kara birlikleri su üzerinden taşınamaz."
+          : "Bu rota karadan geçiyor. Deniz birlikleri yalnızca denizde hareket edebilir."
       );
       return;
     }
@@ -772,10 +1107,7 @@ export default function App() {
       distance: number;
     }>(
       (best, city) => {
-        const distance = haversinePoints(city, {
-          lon: targetLon,
-          lat: targetLat,
-        });
+        const distance = haversinePoints(city, targetPoint);
         return distance < best.distance
           ? { city, distance }
           : best;
@@ -788,11 +1120,10 @@ export default function App() {
         ? nearestCity.city
         : null;
 
-    const sourceUnits = {
-      ...(garrisons[source.code] ?? {}),
-    };
+    const sourceUnits = sourceCity
+      ? { ...(garrisons[sourceCity.code] ?? {}) }
+      : { ...(sourceArmy?.units ?? {}) };
     const orders: MovementOrder[] = [];
-    const skipped: string[] = [];
 
     const travelTurns = 1;
     const arrivalTurn = turn + 1;
@@ -802,14 +1133,6 @@ export default function App() {
         if (requested <= 0) return;
         const baseUnit = UNIT_BY_ID[unitId];
         if (!baseUnit) return;
-        const unit = effectiveUnit(baseUnit);
-
-        if (unit.domain === "naval") {
-          skipped.push(
-            unit.name + " (liman sistemi bekleniyor)"
-          );
-          return;
-        }
 
         const available = sourceUnits[unitId] ?? 0;
         const quantity = Math.min(requested, available);
@@ -824,7 +1147,10 @@ export default function App() {
             cityOwners[targetCity.code] !== currentPlayer
               ? "attack"
               : "move",
-          fromCode: source.code,
+          fromCode: sourceCity?.code ?? null,
+          fromArmyId: sourceArmy?.id ?? null,
+          sourceX: sourcePoint.x,
+          sourceY: sourcePoint.y,
           targetX,
           targetY,
           targetCityCode: targetCity?.code ?? null,
@@ -838,24 +1164,41 @@ export default function App() {
     );
 
     if (!orders.length) {
-      setNotice(
-        skipped.length
-          ? skipped.join(" · ")
-          : "Taşınabilir birlik bulunamadı."
-      );
+      setNotice("Taşınabilir birlik bulunamadı.");
       return;
     }
 
-    setGarrisons((current) => ({
-      ...current,
-      [source.code]: sourceUnits,
-    }));
+    if (sourceCity) {
+      setGarrisons((current) => ({
+        ...current,
+        [sourceCity.code]: sourceUnits,
+      }));
+    } else if (sourceArmy) {
+      setFieldArmies((current) =>
+        current
+          .map((army) =>
+            army.id === sourceArmy.id
+              ? { ...army, units: sourceUnits }
+              : army
+          )
+          .filter((army) =>
+            Object.values(army.units).some(
+              (quantity) => quantity > 0
+            )
+          )
+      );
+    }
+
     setMovementQueue((current) => [
       ...current,
       ...orders,
     ]);
     setMoveSourceCode(null);
+    setMoveSourceArmyId(null);
     setMoveDraft({});
+    setMoveDragTarget(null);
+    setFieldArmyPanelOpen(false);
+    setSelectedFieldArmyId(null);
 
     if (targetCity) {
       setSelectedCountry(targetCity.countryCode);
@@ -864,12 +1207,12 @@ export default function App() {
 
     setNotice(
       targetCity
-        ? `${source.name} → ${targetCity.name}: ${Math.round(
+        ? `${sourcePoint.label} → ${targetCity.name}: ${Math.round(
             distanceKm
-          ).toLocaleString("tr-TR")} km · ${travelTurns} tur · varış Tur ${arrivalTurn}.`
-        : `${source.name}: birlikler haritada seçtiğin koordinata hareket ediyor · ${Math.round(
+          ).toLocaleString("tr-TR")} km · varış Tur ${arrivalTurn}.`
+        : `${sourcePoint.label}: birlik haritadaki yeni konuma hareket ediyor · ${Math.round(
             distanceKm
-          ).toLocaleString("tr-TR")} km · ${travelTurns} tur · varış Tur ${arrivalTurn}.`
+          ).toLocaleString("tr-TR")} km · varış Tur ${arrivalTurn}.`
     );
   }
 
@@ -1195,6 +1538,8 @@ export default function App() {
                       } else {
                         setSelectedCountry(code);
                         setCityPanelOpen(false);
+                        setFieldArmyPanelOpen(false);
+                        setSelectedFieldArmyId(null);
                       }
                     }}
                   >
@@ -1296,14 +1641,10 @@ export default function App() {
               previewMoveSource &&
               activeMoveRangeRadius > 0 &&
               (() => {
-                const [x, y] = project([
-                  previewMoveSource.lon,
-                  previewMoveSource.lat,
-                ]);
                 return (
                   <circle
-                    cx={x + offset}
-                    cy={y}
+                    cx={previewMoveSource.x + offset}
+                    cy={previewMoveSource.y}
                     r={activeMoveRangeRadius}
                     className="movement-range-circle"
                   />
@@ -1312,14 +1653,8 @@ export default function App() {
 
             {mode === "game" &&
               movementQueue.map((order) => {
-                const from = CITIES.find(
-                  (city) => city.code === order.fromCode
-                );
-                if (!from) return null;
-                const [sx, sy] = project([
-                  from.lon,
-                  from.lat,
-                ]);
+                const sx = order.sourceX;
+                const sy = order.sourceY;
                 const tx = shortestWrappedTargetX(
                   sx,
                   order.targetX
@@ -1371,9 +1706,36 @@ export default function App() {
                   <g
                     key={army.id + "-army-" + offset}
                     transform={`translate(${army.x + offset} ${army.y}) scale(${1 / mapZoom})`}
-                    className="field-army-marker"
+                    className={
+                      "field-army-marker " +
+                      (selectedFieldArmyId === army.id
+                        ? "selected "
+                        : "")
+                    }
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (moveSourceCode || moveSourceArmyId) {
+                        return;
+                      }
+                      if (army.player !== currentPlayer) {
+                        setNotice(
+                          "Bu saha birliği başka bir oyuncuya ait."
+                        );
+                        return;
+                      }
+                      setSelectedCityCode("");
+                      setCityPanelOpen(false);
+                      setSelectedFieldArmyId(army.id);
+                      setFieldArmyPanelOpen(true);
+                      setMoveDraft({});
+                      setMoveSourceCode(null);
+                      setMoveSourceArmyId(null);
+                      setNotice(
+                        "Saha birliği seçildi. Birlik miktarını seçerek bir sonraki hareketini yapabilirsin."
+                      );
+                    }}
                   >
-                    <circle r="8" />
+                    <circle r="9" />
                     <path d="M-4 3 L0 -5 L4 3 Z" />
                     <text y="13">{total}</text>
                   </g>
@@ -1381,13 +1743,10 @@ export default function App() {
               })}
 
             {mode === "game" &&
-              moveSourceCode &&
+              activeMoveSource &&
               (() => {
-                const source = CITIES.find(
-                  (city) => city.code === moveSourceCode
-                );
-                if (!source) return null;
-                const [sx, sy] = project([source.lon, source.lat]);
+                const sx = activeMoveSource.x;
+                const sy = activeMoveSource.y;
                 const currentTarget = moveDragTarget ?? {
                   x: sx,
                   y: sy,
@@ -1396,16 +1755,59 @@ export default function App() {
                   sx,
                   currentTarget.x
                 );
-                const previewDistance = haversinePoints(source, {
-                  lon: unproject([
-                    currentTarget.x,
-                    currentTarget.y,
-                  ])[0],
-                  lat: unproject([
-                    currentTarget.x,
-                    currentTarget.y,
-                  ])[1],
-                });
+                const [previewLon, previewLat] = unproject([
+                  currentTarget.x,
+                  currentTarget.y,
+                ]);
+                const previewDistance = haversinePoints(
+                  activeMoveSource,
+                  {
+                    lon: previewLon,
+                    lat: previewLat,
+                  }
+                );
+                const previewIsLand = isLandPoint(
+                  world,
+                  previewLon,
+                  previewLat
+                );
+                const previewSurfaceInvalid =
+                  moveSurface === "mixed" ||
+                  (moveSurface === "land" && !previewIsLand) ||
+                  (moveSurface === "naval" && previewIsLand);
+                const previewRouteInvalid =
+                  !previewSurfaceInvalid &&
+                  moveSurface !== "mixed" &&
+                  !routeStaysOnSurface(
+                    world,
+                    activeMoveSource,
+                    {
+                      lon: previewLon,
+                      lat: previewLat,
+                    },
+                    moveSurface,
+                    Boolean(
+                      activeMoveSource.sourceKind === "city" &&
+                        moveSurface === "naval"
+                    )
+                  );
+                const previewInvalid =
+                  previewDistance > activeMoveRangeKm ||
+                  previewSurfaceInvalid ||
+                  previewRouteInvalid;
+                const invalidLabel =
+                  previewDistance > activeMoveRangeKm
+                    ? "MENZİL DIŞI"
+                    : moveSurface === "land" &&
+                        !previewIsLand
+                      ? "KARA BİRLİĞİ DENİZE GİDEMEZ"
+                      : moveSurface === "naval" &&
+                          previewIsLand
+                        ? "DENİZ BİRLİĞİ KARAYA GİDEMEZ"
+                        : previewRouteInvalid
+                          ? "ROTA UYGUN DEĞİL"
+                          : "";
+
                 return (
                   <g className="free-move-drag-layer">
                     {moveDragTarget && (
@@ -1416,7 +1818,7 @@ export default function App() {
                           x2={previewX + offset}
                           y2={currentTarget.y}
                           className={
-                            previewDistance > activeMoveRangeKm
+                            previewInvalid
                               ? "drag-preview-route invalid"
                               : "drag-preview-route"
                           }
@@ -1424,15 +1826,15 @@ export default function App() {
                         <g
                           transform={`translate(${previewX + offset} ${currentTarget.y}) scale(${1 / mapZoom})`}
                           className={
-                            previewDistance > activeMoveRangeKm
+                            previewInvalid
                               ? "drop-preview-marker invalid"
                               : "drop-preview-marker"
                           }
                         >
                           <circle r="7" />
                           <text y="15">
-                            {previewDistance > activeMoveRangeKm
-                              ? "MENZİL DIŞI · "
+                            {previewInvalid
+                              ? invalidLabel + " · "
                               : ""}
                             {Math.round(
                               previewDistance
@@ -1462,6 +1864,7 @@ export default function App() {
                   </g>
                 );
               })()}
+
 
           </g>
         ))}
@@ -2388,9 +2791,165 @@ export default function App() {
           </section>
         )}
 
+        {fieldArmyPanelOpen && selectedFieldArmy && (
+          <section className="city-window field-army-window panel">
+            <header>
+              <div>
+                <b>Saha Birliği</b>
+                <span>
+                  Haritadaki birlik grubu · Tur {turn}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setFieldArmyPanelOpen(false);
+                  setSelectedFieldArmyId(null);
+                  setMoveSourceArmyId(null);
+                  setMoveDraft({});
+                }}
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="city-meta">
+              <span>
+                Sahip: <b>{selectedFieldArmy.player}</b>
+              </span>
+              <span>
+                Toplam:{" "}
+                <b>
+                  {Object.values(
+                    selectedFieldArmy.units
+                  ).reduce(
+                    (sum, quantity) => sum + quantity,
+                    0
+                  )}
+                </b>
+              </span>
+            </div>
+
+            <div className="unit-scroll movement-list">
+              <p>
+                Birlik miktarını seç. Sarı işaret aktif
+                olunca aynı saha birliğini tekrar hareket
+                ettirebilirsin.
+              </p>
+
+              {UNIT_DEFINITIONS.filter(
+                (unit) =>
+                  (selectedFieldArmy.units[unit.id] ?? 0) > 0
+              ).map((unit) => {
+                const available =
+                  selectedFieldArmy.units[unit.id] ?? 0;
+                const selected =
+                  moveDraft[unit.id] ?? 0;
+                return (
+                  <div className="move-row" key={unit.id}>
+                    <div className="unit-thumb">
+                      {UNIT_ICON_BY_ID[unit.id] ? (
+                        <img
+                          src={UNIT_ICON_BY_ID[unit.id]}
+                          alt={unit.name}
+                        />
+                      ) : (
+                        <span>▰</span>
+                      )}
+                    </div>
+                    <div>
+                      <b>{unit.name}</b>
+                      <span>Birlik: {available}</span>
+                    </div>
+                    <button
+                      className="move-step"
+                      onClick={() =>
+                        setMoveDraft((current) => ({
+                          ...current,
+                          [unit.id]: Math.max(
+                            0,
+                            (current[unit.id] ?? 0) - 1
+                          ),
+                        }))
+                      }
+                    >
+                      −
+                    </button>
+                    <input
+                      type="range"
+                      min="0"
+                      max={available}
+                      value={selected}
+                      onChange={(event) =>
+                        setMoveDraft((current) => ({
+                          ...current,
+                          [unit.id]: Number(
+                            event.target.value
+                          ),
+                        }))
+                      }
+                    />
+                    <button
+                      className="move-step"
+                      onClick={() =>
+                        setMoveDraft((current) => ({
+                          ...current,
+                          [unit.id]: Math.min(
+                            available,
+                            (current[unit.id] ?? 0) + 1
+                          ),
+                        }))
+                      }
+                    >
+                      +
+                    </button>
+                    <b className="move-selected-count">
+                      {selected}
+                    </b>
+                    <button
+                      onClick={() =>
+                        setMoveDraft((current) => ({
+                          ...current,
+                          [unit.id]: available,
+                        }))
+                      }
+                    >
+                      ALL
+                    </button>
+                  </div>
+                );
+              })}
+
+              <div className="move-summary">
+                <span>Seçilen birlik</span>
+                <b>{moveSelectionCount}</b>
+                <span>1 tur menzili</span>
+                <b>
+                  {moveSelectionCount > 0
+                    ? Math.round(
+                        activeMoveRangeKm
+                      ).toLocaleString("tr-TR") + " km"
+                    : "—"}
+                </b>
+              </div>
+
+              <div
+                className={
+                  moveSelectionCount > 0
+                    ? "drag-mode-status active"
+                    : "drag-mode-status"
+                }
+              >
+                {moveSelectionCount > 0
+                  ? "SÜRÜKLEME AKTİF · HARİTADAKİ SARI İŞARETİ TUT"
+                  : "ÖNCE BİRLİK MİKTARI SEÇ"}
+              </div>
+            </div>
+          </section>
+        )}
+
         <div className="notice-bar">{notice}</div>
 
-        {moveSourceCode && (
+        {(moveSourceCode || moveSourceArmyId) && (
           <div className="target-hint">
             <span>
               ŞEHİR ÜZERİNDEKİ SARI BİRLİK İŞARETİNİ TUT VE SÜRÜKLE · {moveSelectionCount} birlik · sınır{" "}
@@ -2398,10 +2957,17 @@ export default function App() {
             </span>
             <button
               onClick={() => {
+                const armyMode = Boolean(moveSourceArmyId);
                 setMoveSourceCode(null);
+                setMoveSourceArmyId(null);
                 setMoveDraft({});
-                setCityPanelOpen(true);
-                setCityTab("movement");
+                setMoveDragTarget(null);
+                if (armyMode) {
+                  setFieldArmyPanelOpen(true);
+                } else {
+                  setCityPanelOpen(true);
+                  setCityTab("movement");
+                }
                 setNotice("Taşıma emri iptal edildi.");
               }}
             >
