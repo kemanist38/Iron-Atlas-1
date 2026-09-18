@@ -425,18 +425,34 @@ export default function App() {
           <div className="unit-detail">
             <span className="eyebrow">SELECTED UNIT</span>
             <h4>{selectedUnit.name}</h4>
-            <div className="unit-stat-grid">
-              <div><span>Saldırı</span><b>{selectedUnit.attack}</b></div>
-              <div><span>Savunma</span><b>{selectedUnit.defense}</b></div>
-              <div><span>Hız</span><b>{selectedUnit.speed}</b></div>
-              <div><span>Üretim</span><b>{selectedUnit.productionTurns} tur</b></div>
+            <div className="unit-stat-grid atwar-grid">
+              <div><span>Saldırı</span><b>{selectedUnit.stats.attack}</b></div>
+              <div><span>Defans</span><b>{selectedUnit.stats.defense}</b></div>
+              <div><span>Kritik</span><b>{selectedUnit.stats.critical}</b></div>
+              <div><span>HP</span><b>{selectedUnit.stats.hp}</b></div>
+              <div><span>Hareket</span><b>{selectedUnit.stats.movement}</b></div>
+              <div><span>Görüş</span><b>{selectedUnit.stats.view}</b></div>
+              <div><span>Kapasite</span><b>{selectedUnit.stats.capacity || "—"}</b></div>
+              <div><span>Maliyet</span><b>{selectedUnit.stats.cost}</b></div>
+              <div><span>Collateral</span><b>{selectedUnit.stats.collateral}</b></div>
             </div>
             <p>{selectedUnit.special}</p>
-            <div className="unit-cost">
-              <span>Altın {selectedUnit.goldCost}</span>
-              <span>Çelik {selectedUnit.steelCost}</span>
-              <span>Petrol {selectedUnit.oilCost}</span>
-            </div>
+            {selectedUnit.defenceBonuses.length > 0 && (
+              <div className="bonus-box">
+                <span className="eyebrow">DEFENCE BONUS</span>
+                {selectedUnit.defenceBonuses.map((bonus) => (
+                  <div key={bonus.against}>
+                    <span>{bonus.against}</span>
+                    <b>{bonus.value > 0 ? "+" : ""}{bonus.value}</b>
+                  </div>
+                ))}
+              </div>
+            )}
+            {selectedUnit.estimated && (
+              <small className="estimated-note">
+                Bu birimin temel değerleri Iron Atlas dengesi için tahmini olarak ayarlanmıştır.
+              </small>
+            )}
           </div>
 
           <button className="attack" onClick={claimSelected}>
