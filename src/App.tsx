@@ -1024,14 +1024,14 @@ export default function App() {
             </button>
 
             <div className="queue-box movement-queue-box">
-              <span className="eyebrow">BEKLEYEN HAREKETLER</span>
+              <span className="eyebrow">BEKLEYEN EMİRLER</span>
               {movementQueue.length === 0 ? (
                 <small>Hareket emri yok.</small>
               ) : (
                 movementQueue.map((order) => (
                   <div className="queue-order" key={order.id}>
                     <div>
-                      <strong>{order.quantity} × {order.unitName}</strong>
+                      <strong>{order.kind === "attack" ? "SALDIRI · " : "HAREKET · "}{order.quantity} × {order.unitName}</strong>
                       <small>{order.fromCity} → {order.toCity}</small>
                     </div>
                     <b>{order.distanceKm.toLocaleString("tr-TR")} km</b>
