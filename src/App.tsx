@@ -617,15 +617,78 @@ export default function App() {
       .map(([unitId]) => UNIT_BY_ID[unitId]?.domain)
       .filter(Boolean)
   );
-  const moveSurface: "land" | "naval" | "air" | "mixed" =
-    selectedMoveDomains.has("land") &&
-    selectedMoveDomains.has("naval")
-      ? "mixed"
-      : selectedMoveDomains.has("land")
-        ? "land"
-        : selectedMoveDomains.has("naval")
-          ? "naval"
-          : "air";
+  const selectedLandCount = moveSelectionEntries.reduce(
+    (sum, [unitId, quantity]) =>
+      UNIT_BY_ID[unitId]?.domain === "land"
+        ? sum + quantity
+        : sum,
+    0
+  );
+  const selectedSupportShips =
+    moveDraft.support_ship ?? 0;
+  const selectedTransportPlanes =
+    moveDraft.transport_plane ?? 0;
+  const seaTransportCapacity =
+    selectedSupportShips *
+    (UNIT_BY_ID.support_ship?.stats.capacity ?? 0);
+  const airTransportCapacity =
+    selectedTransportPlanes *
+    (UNIT_BY_ID.transport_plane?.stats.capacity ?? 0);
+  const hasLand = selectedMoveDomains.has("land");
+  const hasNaval = selectedMoveDomains.has("naval");
+  const hasAir = selectedMoveDomains.has("air");
+  const validSeaTransport =
+    hasLand &&
+    hasNaval &&
+    !hasAir &&
+    selectedSupportShips > 0 &&
+    selectedLandCount <= seaTransportCapacity;
+  const validAirTransport =
+    hasLand &&
+    hasAir &&
+    !hasNaval &&
+    selectedTransportPlanes > 0 &&
+    selectedLandCount <= airTransportCapacity;
+
+  const moveSurface:
+    | "none"
+    | "land"
+    | "naval"
+    | "air"
+    | "naval_transport"
+    | "air_transport"
+    | "mixed" =
+    moveSelectionEntries.length === 0
+      ? "none"
+      : validSeaTransport
+        ? "naval_transport"
+        : validAirTransport
+          ? "air_transport"
+          : [hasLand, hasNaval, hasAir].filter(Boolean).length > 1
+            ? "mixed"
+            : hasLand
+              ? "land"
+              : hasNaval
+                ? "naval"
+                : "air";
+
+  const transportCapacityIssue =
+    hasLand && hasNaval && selectedSupportShips > 0
+      ? selectedLandCount > seaTransportCapacity
+        ? `Gemi kapasitesi yetersiz: ${selectedLandCount}/${seaTransportCapacity} kara birimi.`
+        : ""
+      : hasLand && hasAir && selectedTransportPlanes > 0
+        ? selectedLandCount > airTransportCapacity
+          ? `Nakliye uçağı kapasitesi yetersiz: ${selectedLandCount}/${airTransportCapacity} kara birimi.`
+          : ""
+        : "";
+
+  const transportModeLabel =
+    moveSurface === "naval_transport"
+      ? `Deniz nakliyesi · ${selectedLandCount}/${seaTransportCapacity}`
+      : moveSurface === "air_transport"
+        ? `Hava nakliyesi · ${selectedLandCount}/${airTransportCapacity}`
+        : "";
 
   const activeMoveSourceCity = moveSourceCode
     ? CITIES.find((city) => city.code === moveSourceCode)
@@ -710,14 +773,21 @@ export default function App() {
 
   const activeMoveRangeKm = useMemo(() => {
     if (!moveSelectionEntries.length) return 0;
-    const ranges = moveSelectionEntries
+    const movingUnits = moveSelectionEntries
       .map(([unitId]) => UNIT_BY_ID[unitId])
       .filter((unit): unit is UnitDefinition => Boolean(unit))
-      .map((unit) =>
-        movementRangeKm(applyStrategy(unit, selectedStrategy))
+      .filter((unit) =>
+        moveSurface === "naval_transport"
+          ? unit.domain === "naval"
+          : moveSurface === "air_transport"
+            ? unit.domain === "air"
+            : true
       );
+    const ranges = movingUnits.map((unit) =>
+      movementRangeKm(applyStrategy(unit, selectedStrategy))
+    );
     return ranges.length ? Math.min(...ranges) : 0;
-  }, [moveDraft, selectedStrategy]);
+  }, [moveDraft, selectedStrategy, moveSurface]);
   const activeMoveRangeRadius =
     (activeMoveRangeKm / 40075) * WORLD_WIDTH;
 
