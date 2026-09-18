@@ -508,6 +508,20 @@ export default function App() {
   const [selectedCountry, setSelectedCountry] = useState("TUR");
   const [selectedCityCode, setSelectedCityCode] = useState("");
   const [cityPanelOpen, setCityPanelOpen] = useState(false);
+  const [cityWindowPosition, setCityWindowPosition] = useState({
+    x: 30,
+    y: 46,
+  });
+  const cityWindowDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
+  const [productionUsedThisTurn, setProductionUsedThisTurn] =
+    useState<Record<string, number>>({});
+  const productionUsedRef = useRef<Record<string, number>>({});
   const [cityTab, setCityTab] =
     useState<"production" | "movement">("production");
   const [moveDraft, setMoveDraft] = useState<
@@ -1010,6 +1024,8 @@ export default function App() {
     setCityOwners(nextCityOwners);
     setGarrisons(nextGarrisons);
     setProductionQueue([]);
+    productionUsedRef.current = {};
+    setProductionUsedThisTurn({});
     setMovementQueue([]);
     setFieldArmies([]);
     setSelectedFieldArmyId(null);
@@ -1047,14 +1063,14 @@ export default function App() {
   function queueProduction(
     city: CityNode,
     unit: UnitDefinition,
-    quantity: number
+    requestedQuantity: number
   ) {
     if (cityOwners[city.code] !== currentPlayer) {
       setNotice("Sadece kendi şehrinde üretim yapabilirsin.");
       return;
     }
 
-    if (quantity <= 0) return;
+    if (requestedQuantity <= 0) return;
 
     if (unit.domain === "naval" && !cityHasPort(city.code)) {
       setNotice(
@@ -1063,6 +1079,24 @@ export default function App() {
       return;
     }
 
+    const alreadyProduced =
+      productionUsedRef.current[city.code] ?? 0;
+    const remainingCapacity = Math.max(
+      0,
+      city.recruitCapacity - alreadyProduced
+    );
+
+    if (remainingCapacity <= 0) {
+      setNotice(
+        `${city.name} bu turdaki ${city.recruitCapacity} birimlik üretim kapasitesini tamamen kullandı.`
+      );
+      return;
+    }
+
+    const quantity = Math.min(
+      requestedQuantity,
+      remainingCapacity
+    );
     const unitWithStrategy = effectiveUnit(unit);
     const cost = productionCost(unitWithStrategy, quantity);
 
@@ -1074,6 +1108,16 @@ export default function App() {
       setNotice("Üretim için yeterli kaynağın yok.");
       return;
     }
+
+    const nextUsed = alreadyProduced + quantity;
+    productionUsedRef.current = {
+      ...productionUsedRef.current,
+      [city.code]: nextUsed,
+    };
+    setProductionUsedThisTurn((current) => ({
+      ...current,
+      [city.code]: nextUsed,
+    }));
 
     setResources((current) => ({
       gold: current.gold - cost.gold,
@@ -1090,8 +1134,11 @@ export default function App() {
       },
     }));
 
+    const clipped = quantity < requestedQuantity;
     setNotice(
-      `${city.name}: ${quantity} × ${unit.name} anında üretildi. Aynı tur içinde BİRLİK TAŞI bölümünden kullanabilirsin.`
+      clipped
+        ? `${city.name}: kapasite nedeniyle ${requestedQuantity} yerine ${quantity} × ${unit.name} üretildi. Bu tur kapasite ${nextUsed}/${city.recruitCapacity}.`
+        : `${city.name}: ${quantity} × ${unit.name} anında üretildi. Bu tur kapasite ${nextUsed}/${city.recruitCapacity}. Aynı tur taşıyabilirsin.`
     );
   }
 
@@ -1981,6 +2028,8 @@ export default function App() {
     setCountryOwners(nextCountryOwners);
     setCapitalHolds(nextHolds);
     setProductionQueue(validPending);
+    productionUsedRef.current = {};
+    setProductionUsedThisTurn({});
     setMovementQueue(inTransitMovementOrders);
     setFieldArmies(
       nextFieldArmies.filter((army) =>
@@ -3216,8 +3265,84 @@ export default function App() {
         </aside>
 
         {cityPanelOpen && selectedCity && (
-          <section className="city-window panel">
-            <header>
+          <section
+            className="city-window panel"
+            style={{
+              left: cityWindowPosition.x,
+              top: cityWindowPosition.y,
+            }}
+          >
+            <header
+              className="city-window-drag-handle"
+              onPointerDown={(event) => {
+                if (
+                  (event.target as HTMLElement).closest("button")
+                ) {
+                  return;
+                }
+                event.stopPropagation();
+                event.currentTarget.setPointerCapture(
+                  event.pointerId
+                );
+                cityWindowDragRef.current = {
+                  pointerId: event.pointerId,
+                  startX: event.clientX,
+                  startY: event.clientY,
+                  originX: cityWindowPosition.x,
+                  originY: cityWindowPosition.y,
+                };
+              }}
+              onPointerMove={(event) => {
+                const drag = cityWindowDragRef.current;
+                if (
+                  !drag ||
+                  drag.pointerId !== event.pointerId
+                ) {
+                  return;
+                }
+                event.stopPropagation();
+                const maxX = Math.max(
+                  0,
+                  window.innerWidth - 410
+                );
+                const maxY = Math.max(
+                  0,
+                  window.innerHeight - 120
+                );
+                setCityWindowPosition({
+                  x: Math.min(
+                    maxX,
+                    Math.max(
+                      0,
+                      drag.originX +
+                        event.clientX -
+                        drag.startX
+                    )
+                  ),
+                  y: Math.min(
+                    maxY,
+                    Math.max(
+                      0,
+                      drag.originY +
+                        event.clientY -
+                        drag.startY
+                    )
+                  ),
+                });
+              }}
+              onPointerUp={(event) => {
+                if (
+                  cityWindowDragRef.current?.pointerId ===
+                  event.pointerId
+                ) {
+                  cityWindowDragRef.current = null;
+                  event.stopPropagation();
+                }
+              }}
+              onPointerCancel={() => {
+                cityWindowDragRef.current = null;
+              }}
+            >
               <div>
                 <b>{selectedCity.name}</b>
                 <span>
@@ -3232,6 +3357,9 @@ export default function App() {
                 </span>
               </div>
               <button
+                onPointerDown={(event) =>
+                  event.stopPropagation()
+                }
                 onClick={() =>
                   setCityPanelOpen(false)
                 }
@@ -3286,10 +3414,23 @@ export default function App() {
             {cityTab === "production" ? (
               <div className="unit-scroll">
                 <div className="capacity-strip instant-production">
-                  <span>Üretim</span>
-                  <b>ANINDA</b>
-                  <span>Şehir kapasitesi</span>
-                  <b>{selectedCity.recruitCapacity}</b>
+                  <span>Bu tur üretildi</span>
+                  <b>
+                    {productionUsedThisTurn[
+                      selectedCity.code
+                    ] ?? 0}
+                    /{selectedCity.recruitCapacity}
+                  </b>
+                  <span>Kalan kapasite</span>
+                  <b>
+                    {Math.max(
+                      0,
+                      selectedCity.recruitCapacity -
+                        (productionUsedThisTurn[
+                          selectedCity.code
+                        ] ?? 0)
+                    )}
+                  </b>
                 </div>
 
                 {UNIT_DEFINITIONS.map((unit) => {
@@ -3342,7 +3483,11 @@ export default function App() {
                         disabled={
                           selectedCityOwner !==
                             currentPlayer ||
-                          requiresPort
+                          requiresPort ||
+                          (productionUsedThisTurn[
+                            selectedCity.code
+                          ] ?? 0) >=
+                            selectedCity.recruitCapacity
                         }
                         onClick={() =>
                           queueProduction(
@@ -3358,7 +3503,11 @@ export default function App() {
                         disabled={
                           selectedCityOwner !==
                             currentPlayer ||
-                          requiresPort
+                          requiresPort ||
+                          (productionUsedThisTurn[
+                            selectedCity.code
+                          ] ?? 0) >=
+                            selectedCity.recruitCapacity
                         }
                         onClick={() =>
                           queueProduction(
@@ -3374,7 +3523,11 @@ export default function App() {
                         disabled={
                           selectedCityOwner !==
                             currentPlayer ||
-                          requiresPort
+                          requiresPort ||
+                          (productionUsedThisTurn[
+                            selectedCity.code
+                          ] ?? 0) >=
+                            selectedCity.recruitCapacity
                         }
                         onClick={() =>
                           queueProduction(
