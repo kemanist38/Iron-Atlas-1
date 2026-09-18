@@ -449,12 +449,45 @@ export default function App() {
   const activeMoveRangeRadius =
     (activeMoveRangeKm / 40075) * WORLD_WIDTH;
 
+  useEffect(() => {
+    if (
+      screen !== "game" ||
+      !cityPanelOpen ||
+      cityTab !== "movement" ||
+      !selectedCity ||
+      selectedCityOwner !== currentPlayer
+    ) {
+      return;
+    }
+
+    if (moveSelectionCount > 0) {
+      setMoveSourceCode(selectedCity.code);
+      setNotice(
+        `${selectedCity.name}: ${moveSelectionCount} birlik seçildi. Şehrin üzerindeki sarı birlik işaretini tutup yeşil alan içinde istediğin noktaya sürükle.`
+      );
+    } else if (
+      moveSourceCode === selectedCity.code &&
+      !moveDragRef.current
+    ) {
+      setMoveSourceCode(null);
+      setMoveDragTarget(null);
+    }
+  }, [
+    screen,
+    cityPanelOpen,
+    cityTab,
+    selectedCityCode,
+    selectedCityOwner,
+    currentPlayer,
+    moveSelectionCount,
+  ]);
+
   const playerCountries = COUNTRIES.filter(
     (country) => countryOwners[country.code] === currentPlayer
   );
 
   function setZoom(nextZoom: number) {
-    const zoom = Math.max(1, Math.min(3, nextZoom));
+    const zoom = Math.max(1, Math.min(4.5, nextZoom));
     setMapZoom(zoom);
     setMapCenter((current) => {
       const viewHeight = WORLD_HEIGHT / zoom;
@@ -502,7 +535,7 @@ export default function App() {
   function handleMapDown(
     event: ReactPointerEvent<SVGSVGElement>
   ) {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || moveDragRef.current) return;
     dragRef.current = {
       x: event.clientX,
       y: event.clientY,
@@ -626,7 +659,7 @@ export default function App() {
       setSelectedCityCode(capital.code);
       const [x, y] = project([capital.lon, capital.lat]);
       setMapCenter({ x, y });
-      setMapZoom(1.9);
+      setMapZoom(2.45);
     }
     setCityPanelOpen(false);
     setMoveSourceCode(null);
@@ -695,25 +728,6 @@ export default function App() {
     );
   }
 
-  function startMovement() {
-    if (!selectedCity) return;
-    if (selectedCityOwner !== currentPlayer) {
-      setNotice("Birlik taşıma için kendi şehrini seç.");
-      return;
-    }
-    const selected = Object.entries(moveDraft).filter(
-      ([, quantity]) => quantity > 0
-    );
-    if (!selected.length) {
-      setNotice("Taşınacak birlik miktarını seç.");
-      return;
-    }
-    setMoveSourceCode(selectedCity.code);
-    setCityPanelOpen(false);
-    setNotice(
-      `${selectedCity.name}: ${moveSelectionCount} birlik hazır. Kaynak şehrin üstündeki birlik işaretini tutup haritada istediğin noktaya sürükle ve bırak.`
-    );
-  }
 
   function handleCityClick(city: CityNode) {
     if (moveSourceCode) {
@@ -1432,6 +1446,9 @@ export default function App() {
                       className="draggable-army-token"
                       onPointerDown={(event) => {
                         event.stopPropagation();
+                        event.currentTarget.setPointerCapture(
+                          event.pointerId
+                        );
                         moveDragRef.current = {
                           pointerId: event.pointerId,
                         };
@@ -2355,18 +2372,17 @@ export default function App() {
                   </b>
                 </div>
 
-                <button
-                  className="primary-button target-button"
-                  disabled={
-                    selectedCityOwner !== currentPlayer ||
-                    moveSelectionCount === 0
+                <div
+                  className={
+                    moveSelectionCount > 0
+                      ? "drag-mode-status active"
+                      : "drag-mode-status"
                   }
-                  onClick={startMovement}
                 >
                   {moveSelectionCount > 0
-                    ? "SÜRÜKLEME MODUNA GEÇ"
-                    : "ÖNCE BİRLİK SEÇ"}
-                </button>
+                    ? "SÜRÜKLEME AKTİF · ŞEHİR ÜZERİNDEKİ SARI İŞARETİ TUT"
+                    : "ÖNCE BİRLİK MİKTARI SEÇ"}
+                </div>
               </div>
             )}
           </section>
@@ -2377,7 +2393,7 @@ export default function App() {
         {moveSourceCode && (
           <div className="target-hint">
             <span>
-              BİRLİK İŞARETİNİ TUTUP SÜRÜKLE · {moveSelectionCount} birlik · sınır{" "}
+              ŞEHİR ÜZERİNDEKİ SARI BİRLİK İŞARETİNİ TUT VE SÜRÜKLE · {moveSelectionCount} birlik · sınır{" "}
               {Math.round(activeMoveRangeKm).toLocaleString("tr-TR")} km · yeşil alan dışına bırakılamaz
             </span>
             <button
