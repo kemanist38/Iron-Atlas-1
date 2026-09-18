@@ -257,6 +257,9 @@ function getRadarStacks(garrison: Record<string, number>): RadarStack[] {
   ].filter((stack) => stack.count > 0);
 }
 
+const TERRAIN_MAP_URL =
+  "https://upload.wikimedia.org/wikipedia/commons/d/df/Worldmap_location_NED_50m.svg";
+
 const WORLD_WIDTH = 1000;
 const WORLD_HEIGHT = 500;
 const WORLD_COPIES = [-WORLD_WIDTH, 0, WORLD_WIDTH];
@@ -1025,6 +1028,16 @@ export default function App() {
                     key={worldOffset}
                     transform={`translate(${worldOffset} 0)`}
                   >
+                    <image
+                      href={TERRAIN_MAP_URL}
+                      x="0"
+                      y="0"
+                      width={WORLD_WIDTH}
+                      height={WORLD_HEIGHT}
+                      preserveAspectRatio="none"
+                      className="terrain-base"
+                    />
+
                     {world.map((feature, index) => {
                       const id = String(feature.id ?? `country-${index}`);
                       const state =
@@ -1043,7 +1056,9 @@ export default function App() {
                             PLAYER_COLORS[owner] ?? PLAYER_COLORS.Neutral
                           }
                           className={
-                            "country " +
+                            "country owner-" +
+                            owner.toLowerCase() +
+                            " " +
                             (selectedId === id ? "selected" : "")
                           }
                           onClick={() => {
@@ -1278,6 +1293,10 @@ export default function App() {
 
             <div className="map-wrap-hint">
               Tekerlek: zoom · Tutup sürükle: haritayı kaydır · Dünya yatayda sonsuz döner
+            </div>
+
+            <div className="map-attribution">
+              Physical base: Natural Earth
             </div>
 
             <div className="map-overlay">
