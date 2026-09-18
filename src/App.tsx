@@ -473,6 +473,15 @@ function generatedResource(code: string): "Altın" | "Çelik" | "Petrol" {
       : "Altın";
 }
 
+const LANDLOCKED_COUNTRY_CODES = new Set([
+  "AFG","AND","ARM","AUT","BLR","BTN","BOL","BWA",
+  "BFA","BDI","CAF","TCD","CZE","ETH","HUN","KAZ",
+  "KGZ","LAO","LSO","LIE","LUX","MKD","MWI","MLI",
+  "MDA","MNG","NPL","NER","PRY","RWA","SMR","SRB",
+  "SVK","SSD","SWZ","CHE","TJK","TKM","UGA","UZB",
+  "VAT","ZMB","ZWE"
+]);
+
 function wrapWorldX(value: number) {
   return ((value % WORLD_WIDTH) + WORLD_WIDTH) % WORLD_WIDTH;
 }
@@ -621,7 +630,10 @@ function mergeArmy(
   return next;
 }
 
-function startingGarrison(city: CityNode) {
+function startingGarrison(
+  city: CityNode,
+  hasPort = cityHasPort(city.code)
+) {
   const base: Record<string, number> = city.isCapital
     ? {
         infantry: 80,
@@ -639,7 +651,7 @@ function startingGarrison(city: CityNode) {
           Math.max(0, city.recruitCapacity - 1) * 2,
       };
 
-  if (cityHasPort(city.code)) {
+  if (hasPort) {
     base.support_ship = city.isCapital ? 3 : 2;
     base.destroyer = city.isCapital ? 2 : 1;
   }
@@ -770,6 +782,7 @@ export default function App() {
   const generatedWorldData = useMemo(() => {
     const extraCountries: CountryDefinition[] = [];
     const extraCities: CityNode[] = [];
+    const extraPortCodes = new Set<string>();
 
     world.forEach((feature) => {
       const code = featureCountryCode(feature);
@@ -850,8 +863,9 @@ export default function App() {
           : cityCount >= 5 && index === 1
             ? 2
             : 1;
+        const cityCode = `${code}-AUTO${index + 1}`;
         extraCities.push({
-          code: `${code}-AUTO${index + 1}`,
+          code: cityCode,
           countryCode: code,
           name: isCapital
             ? `${name} Başkent`
@@ -869,12 +883,21 @@ export default function App() {
             capacity * 8 +
             Math.round(Math.min(24, sizeScore / 45)),
         });
+
+        const portIndex = cityCount > 1 ? 1 : 0;
+        if (
+          index === portIndex &&
+          !LANDLOCKED_COUNTRY_CODES.has(code)
+        ) {
+          extraPortCodes.add(cityCode);
+        }
       });
     });
 
     return {
       countries: [...COUNTRIES, ...extraCountries],
       cities: [...CITIES, ...extraCities],
+      portCodes: extraPortCodes,
     };
   }, [world]);
 
@@ -894,6 +917,9 @@ export default function App() {
     allCities.filter(
       (city) => city.countryCode === code
     );
+  const hasPortCode = (cityCode: string) =>
+    cityHasPort(cityCode) ||
+    generatedWorldData.portCodes.has(cityCode);
 
   const strategy = strategyById(selectedStrategy);
   const selectedCity = allCities.find(
@@ -1346,7 +1372,10 @@ export default function App() {
       if (city.countryCode === novaCountry) owner = "Nova";
       nextCityOwners[city.code] = owner;
       if (owner) {
-        nextGarrisons[city.code] = startingGarrison(city);
+        nextGarrisons[city.code] = startingGarrison(
+          city,
+          hasPortCode(city.code)
+        );
       }
     });
 
@@ -1402,7 +1431,7 @@ export default function App() {
 
     if (requestedQuantity <= 0) return;
 
-    if (unit.domain === "naval" && !cityHasPort(city.code)) {
+    if (unit.domain === "naval" && !hasPortCode(city.code)) {
       setNotice(
         `${city.name} şehrinde liman yok. Deniz birlikleri yalnızca liman şehirlerinde üretilebilir.`
       );
@@ -1581,7 +1610,7 @@ export default function App() {
         : null;
     const targetIsPort =
       Boolean(targetCity) &&
-      cityHasPort(targetCity!.code);
+      hasPortCode(targetCity!.code);
     const targetIsFriendlyPort =
       targetIsPort &&
       cityOwners[targetCity!.code] === currentPlayer;
@@ -1650,7 +1679,7 @@ export default function App() {
       (moveSurface === "naval" ||
         moveSurface === "naval_transport") &&
       sourceCity &&
-      !cityHasPort(sourceCity.code)
+      !hasPortCode(sourceCity.code)
     ) {
       setNotice(
         `${sourceCity.name} liman şehri değil. Deniz hareketi yalnızca limandan başlatılabilir.`
@@ -1678,7 +1707,7 @@ export default function App() {
         Boolean(
           sourceCity &&
             routeSurface === "naval" &&
-            cityHasPort(sourceCity.code)
+            hasPortCode(sourceCity.code)
         ),
         Boolean(
           targetIsPort &&
@@ -2551,7 +2580,7 @@ export default function App() {
                     <text className="capacity-number">
                       {city.recruitCapacity}
                     </text>
-                    {cityHasPort(city.code) && (
+                    {hasPortCode(city.code) && (
                       <text className="port-marker" x="8" y="8">
                         ⚓
                       </text>
@@ -2761,7 +2790,7 @@ export default function App() {
                     : null;
                 const previewIsPort =
                   Boolean(previewCity) &&
-                  cityHasPort(previewCity!.code);
+                  hasPortCode(previewCity!.code);
                 const previewFriendlyPort =
                   previewIsPort &&
                   cityOwners[previewCity!.code] ===
@@ -2807,7 +2836,7 @@ export default function App() {
                     Boolean(
                       activeMoveSource.sourceKind === "city" &&
                         previewRouteSurface === "naval" &&
-                        cityHasPort(
+                        hasPortCode(
                           String(activeMoveSource.id)
                         )
                     ),
@@ -3672,7 +3701,7 @@ export default function App() {
                     : "Şehir"}{" "}
                   · Kapasite{" "}
                   {selectedCity.recruitCapacity}
-                  {cityHasPort(selectedCity.code)
+                  {hasPortCode(selectedCity.code)
                     ? " · ⚓ Liman"
                     : ""}
                 </span>
@@ -3760,7 +3789,7 @@ export default function App() {
                     productionCost(effective, 1);
                   const requiresPort =
                     unit.domain === "naval" &&
-                    !cityHasPort(selectedCity.code);
+                    !hasPortCode(selectedCity.code);
 
                   return (
                     <div
