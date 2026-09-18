@@ -466,7 +466,7 @@ export default function App() {
   ].join(" ");
 
   function changeMapZoom(nextZoom: number) {
-    const zoom = Math.min(5, Math.max(1, nextZoom));
+    const zoom = Math.min(2.5, Math.max(1, nextZoom));
     setMapZoom(zoom);
     setMapCenter((current) => ({
       x: wrapWorldX(current.x),
@@ -528,7 +528,7 @@ export default function App() {
 
   function handleMapWheel(event: React.WheelEvent<SVGSVGElement>) {
     event.preventDefault();
-    changeMapZoom(mapZoom * (event.deltaY < 0 ? 1.2 : 1 / 1.2));
+    changeMapZoom(mapZoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15));
   }
 
   function queueProduction() {
@@ -1094,27 +1094,28 @@ export default function App() {
                       const cityGarrison = garrisons[city.code] ?? {};
                       const radarStacks = getRadarStacks(cityGarrison);
                       const isSelectedCity = selectedCityId === city.code;
+                      const isSelectedCountry = selectedId === city.countryCode;
 
                       const showCityName =
                         isSelectedCity ||
-                        mapZoom >= 2.6 ||
-                        (city.isCapital && mapZoom >= 1.55);
+                        (isSelectedCountry && mapZoom >= 1.45) ||
+                        (city.isCapital && mapZoom >= 1.2);
 
                       const showEconomicDetail =
-                        (isSelectedCity && mapZoom >= 1.8) ||
-                        (city.isCapital && mapZoom >= 3.4);
+                        isSelectedCity && mapZoom >= 1.7;
 
                       const showRadar =
                         radarStacks.length > 0 &&
-                        (isSelectedCity || mapZoom >= 1.95);
+                        (isSelectedCity ||
+                          (isSelectedCountry && mapZoom >= 2.0));
 
-                      const showRadarCount =
-                        isSelectedCity || mapZoom >= 3.15;
+                      const showRadarCount = isSelectedCity;
 
                       return (
                         <g
                           className={
                             "city city-fixed-marker " +
+                            (isSelectedCountry ? "selected-country-city " : "") +
                             (isSelectedCity ? "selected-city" : "")
                           }
                           key={city.code}
@@ -1124,26 +1125,41 @@ export default function App() {
                             handleCityClick(city);
                           }}
                         >
+                          <circle
+                            cx="0"
+                            cy="0"
+                            r="13"
+                            className="city-hitbox"
+                          />
+
                           {city.isCapital ? (
-                            <text
-                              x="0"
-                              y="4"
-                              className="capital-city-star"
-                              textAnchor="middle"
-                            >
-                              ★
-                            </text>
+                            <>
+                              <circle
+                                cx="0"
+                                cy="0"
+                                r="8"
+                                className="capital-city-ring"
+                              />
+                              <text
+                                x="0"
+                                y="4.6"
+                                className="capital-city-star"
+                                textAnchor="middle"
+                              >
+                                ★
+                              </text>
+                            </>
                           ) : (
                             <>
                               <circle
                                 cx="0"
                                 cy="0"
-                                r="6"
+                                r="7.5"
                                 className="recruit-city-node"
                               />
                               <text
                                 x="0"
-                                y="2.5"
+                                y="2.8"
                                 className="recruit-capacity-number"
                                 textAnchor="middle"
                               >
@@ -1237,15 +1253,17 @@ export default function App() {
 
             <div className="map-controls">
               <button
-                onClick={() => changeMapZoom(mapZoom * 1.3)}
-                title="Yakınlaştır"
+                onClick={() => changeMapZoom(mapZoom * 1.2)}
+                title="Yakınlaştır (maks. %250)"
+                disabled={mapZoom >= 2.5}
               >
                 +
               </button>
               <span>{Math.round(mapZoom * 100)}%</span>
               <button
-                onClick={() => changeMapZoom(mapZoom / 1.3)}
+                onClick={() => changeMapZoom(mapZoom / 1.2)}
                 title="Uzaklaştır"
+                disabled={mapZoom <= 1}
               >
                 −
               </button>
@@ -1268,9 +1286,12 @@ export default function App() {
               <small>
                 {selectedState.owner ?? "Tarafsız"} • {selectedState.troops} birlik
               </small>
+              <small className="city-center">
+                Ülke asker basma kapasitesi: {selectedCountryRecruitCapacity}
+              </small>
               {selectedCity && (
                 <small className="city-center">
-                  Üretim merkezi: {selectedCity.name} · Kapasite {selectedCity.recruitCapacity}
+                  Seçili şehir: {selectedCity.name} · Kapasite {selectedCity.recruitCapacity}
                 </small>
               )}
             </div>
