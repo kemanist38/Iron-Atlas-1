@@ -49,12 +49,22 @@ type MovementOrder = {
   player: string;
   kind: "move" | "attack";
   fromCode: string;
-  toCode: string;
+  targetX: number;
+  targetY: number;
+  targetCityCode: string | null;
   unitId: string;
   quantity: number;
   distanceKm: number;
   departureTurn: number;
   arrivalTurn: number;
+};
+
+type FieldArmy = {
+  id: number;
+  player: string;
+  x: number;
+  y: number;
+  units: Record<string, number>;
 };
 type CapitalHold = {
   holder: string | null;
@@ -78,6 +88,13 @@ function project([lon, lat]: [number, number]) {
   return [
     ((lon + 180) / 360) * WORLD_WIDTH,
     ((90 - lat) / 180) * WORLD_HEIGHT,
+  ] as const;
+}
+
+function unproject([x, y]: [number, number]) {
+  return [
+    (wrapWorldX(x) / WORLD_WIDTH) * 360 - 180,
+    90 - (y / WORLD_HEIGHT) * 180,
   ] as const;
 }
 
@@ -152,7 +169,10 @@ function shortestWrappedTargetX(sourceX: number, targetX: number) {
   );
 }
 
-function haversineKm(a: CityNode, b: CityNode) {
+function haversinePoints(
+  a: { lon: number; lat: number },
+  b: { lon: number; lat: number }
+) {
   const toRad = (value: number) => (value * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat);
   let dLon = b.lon - a.lon;
@@ -167,6 +187,10 @@ function haversineKm(a: CityNode, b: CityNode) {
       Math.cos(lat2) *
       Math.sin(dLonRad / 2) ** 2;
   return 6371 * 2 * Math.asin(Math.sqrt(h));
+}
+
+function haversineKm(a: CityNode, b: CityNode) {
+  return haversinePoints(a, b);
 }
 
 function movementRangeKm(unit: UnitDefinition) {
@@ -302,6 +326,12 @@ export default function App() {
   const [movementQueue, setMovementQueue] = useState<
     MovementOrder[]
   >([]);
+  const [fieldArmies, setFieldArmies] = useState<FieldArmy[]>([]);
+  const [moveDragTarget, setMoveDragTarget] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const moveDragRef = useRef<{ pointerId: number } | null>(null);
   const [capitalHolds, setCapitalHolds] = useState<
     Record<string, CapitalHold>
   >({});
@@ -449,6 +479,26 @@ export default function App() {
     });
   }
 
+  function pointerWorldPosition(
+    event: ReactPointerEvent<SVGSVGElement>
+  ) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x =
+      mapCenter.x -
+      mapViewWidth / 2 +
+      ((event.clientX - rect.left) / Math.max(1, rect.width)) *
+        mapViewWidth;
+    const y =
+      mapCenter.y -
+      mapViewHeight / 2 +
+      ((event.clientY - rect.top) / Math.max(1, rect.height)) *
+        mapViewHeight;
+    return {
+      x,
+      y: Math.max(0, Math.min(WORLD_HEIGHT, y)),
+    };
+  }
+
   function handleMapDown(
     event: ReactPointerEvent<SVGSVGElement>
   ) {
@@ -465,6 +515,11 @@ export default function App() {
   function handleMapMove(
     event: ReactPointerEvent<SVGSVGElement>
   ) {
+    if (moveDragRef.current) {
+      setMoveDragTarget(pointerWorldPosition(event));
+      return;
+    }
+
     const drag = dragRef.current;
     if (!drag) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -490,7 +545,16 @@ export default function App() {
     });
   }
 
-  function handleMapUp() {
+  function handleMapUp(
+    event: ReactPointerEvent<SVGSVGElement>
+  ) {
+    if (moveDragRef.current && moveSourceCode) {
+      const target = moveDragTarget ?? pointerWorldPosition(event);
+      issueFreeMovement(target.x, target.y);
+      moveDragRef.current = null;
+      setMoveDragTarget(null);
+      return;
+    }
     dragRef.current = null;
   }
 
@@ -546,6 +610,7 @@ export default function App() {
     setGarrisons(nextGarrisons);
     setProductionQueue([]);
     setMovementQueue([]);
+    setFieldArmies([]);
     setCapitalHolds({});
     setResources({
       gold: startingMoney - country.purchasePrice,
@@ -646,13 +711,15 @@ export default function App() {
     setMoveSourceCode(selectedCity.code);
     setCityPanelOpen(false);
     setNotice(
-      `${selectedCity.name}: ${moveSelectionCount} birlik seçildi. Yeşil menzil içindeki hedef şehre tıkla.`
+      `${selectedCity.name}: ${moveSelectionCount} birlik hazır. Kaynak şehrin üstündeki birlik işaretini tutup haritada istediğin noktaya sürükle ve bırak.`
     );
   }
 
   function handleCityClick(city: CityNode) {
     if (moveSourceCode) {
-      issueMovement(city);
+      setNotice(
+        "Serbest hareket modundasın. Kaynak şehrin üzerindeki birlik işaretini tutup hedef noktaya sürükle."
+      );
       return;
     }
     setSelectedCountry(city.countryCode);
@@ -662,17 +729,40 @@ export default function App() {
     setCityPanelOpen(true);
   }
 
-  function issueMovement(target: CityNode) {
+  function issueFreeMovement(targetXRaw: number, targetY: number) {
     const source = CITIES.find(
       (city) => city.code === moveSourceCode
     );
-    if (!source || source.code === target.code) {
-      setMoveSourceCode(null);
-      setMoveDraft({});
-      return;
-    }
+    if (!source) return;
 
-    const distanceKm = haversineKm(source, target);
+    const targetX = wrapWorldX(targetXRaw);
+    const [targetLon, targetLat] = unproject([targetX, targetY]);
+    const distanceKm = haversinePoints(source, {
+      lon: targetLon,
+      lat: targetLat,
+    });
+
+    const nearestCity = CITIES.reduce<{
+      city: CityNode | null;
+      distance: number;
+    }>(
+      (best, city) => {
+        const distance = haversinePoints(city, {
+          lon: targetLon,
+          lat: targetLat,
+        });
+        return distance < best.distance
+          ? { city, distance }
+          : best;
+      },
+      { city: null, distance: Number.POSITIVE_INFINITY }
+    );
+
+    const targetCity =
+      nearestCity.city && nearestCity.distance <= 120
+        ? nearestCity.city
+        : null;
+
     const sourceUnits = {
       ...(garrisons[source.code] ?? {}),
     };
@@ -709,11 +799,14 @@ export default function App() {
           id: orderIdRef.current++,
           player: currentPlayer,
           kind:
-            cityOwners[target.code] === currentPlayer
-              ? "move"
-              : "attack",
+            targetCity &&
+            cityOwners[targetCity.code] !== currentPlayer
+              ? "attack"
+              : "move",
           fromCode: source.code,
-          toCode: target.code,
+          targetX,
+          targetY,
+          targetCityCode: targetCity?.code ?? null,
           unitId,
           quantity,
           distanceKm,
@@ -742,18 +835,20 @@ export default function App() {
     ]);
     setMoveSourceCode(null);
     setMoveDraft({});
-    setSelectedCountry(target.countryCode);
-    setSelectedCityCode(target.code);
 
-    const action =
-      cityOwners[target.code] === currentPlayer
-        ? "hareket"
-        : "saldırı";
+    if (targetCity) {
+      setSelectedCountry(targetCity.countryCode);
+      setSelectedCityCode(targetCity.code);
+    }
 
     setNotice(
-      `${source.name} → ${target.name}: ${Math.round(
-        distanceKm
-      ).toLocaleString("tr-TR")} km · ${travelTurns} tur ${action} yolculuğu · varış Tur ${arrivalTurn}.${skipped.length ? " " + skipped.join(" · ") : ""}`
+      targetCity
+        ? `${source.name} → ${targetCity.name}: ${Math.round(
+            distanceKm
+          ).toLocaleString("tr-TR")} km · ${travelTurns} tur · varış Tur ${arrivalTurn}.`
+        : `${source.name}: birlikler haritada seçtiğin koordinata hareket ediyor · ${Math.round(
+            distanceKm
+          ).toLocaleString("tr-TR")} km · ${travelTurns} tur · varış Tur ${arrivalTurn}.`
     );
   }
 
@@ -778,11 +873,41 @@ export default function App() {
       (order) => order.arrivalTurn > nextTurn
     );
 
+    const nextFieldArmies = fieldArmies.map((army) => ({
+      ...army,
+      units: { ...army.units },
+    }));
+
     arrivingMovementOrders.forEach((order) => {
-      const targetCity = CITIES.find(
-        (city) => city.code === order.toCode
-      );
-      if (!targetCity) return;
+      const targetCity = order.targetCityCode
+        ? CITIES.find(
+            (city) => city.code === order.targetCityCode
+          )
+        : undefined;
+
+      if (!targetCity) {
+        const existingArmy = nextFieldArmies.find(
+          (army) =>
+            army.player === order.player &&
+            Math.abs(army.x - order.targetX) < 1 &&
+            Math.abs(army.y - order.targetY) < 1
+        );
+        if (existingArmy) {
+          existingArmy.units[order.unitId] =
+            (existingArmy.units[order.unitId] ?? 0) +
+            order.quantity;
+        } else {
+          nextFieldArmies.push({
+            id: orderIdRef.current++,
+            player: order.player,
+            x: order.targetX,
+            y: order.targetY,
+            units: { [order.unitId]: order.quantity },
+          });
+        }
+        return;
+      }
+
       const targetOwner =
         nextCityOwners[targetCity.code] ?? null;
 
@@ -953,6 +1078,7 @@ export default function App() {
     setCapitalHolds(nextHolds);
     setProductionQueue(validPending);
     setMovementQueue(inTransitMovementOrders);
+    setFieldArmies(nextFieldArmies);
     setTurn(nextTurn);
     setNotice(
       `Tur ${nextTurn}: +${goldIncome} Altın, +${steelIncome} Çelik, +${oilIncome} Petrol.${combatLog.length ? " " + combatLog.join(" ") : ""}`
@@ -1168,22 +1294,16 @@ export default function App() {
                 const from = CITIES.find(
                   (city) => city.code === order.fromCode
                 );
-                const to = CITIES.find(
-                  (city) => city.code === order.toCode
-                );
-                if (!from || !to) return null;
+                if (!from) return null;
                 const [sx, sy] = project([
                   from.lon,
                   from.lat,
                 ]);
-                const [txRaw, ty] = project([
-                  to.lon,
-                  to.lat,
-                ]);
                 const tx = shortestWrappedTargetX(
                   sx,
-                  txRaw
+                  order.targetX
                 );
+                const ty = order.targetY;
                 const midX = (sx + tx) / 2 + offset;
                 const midY = (sy + ty) / 2;
                 const turnsLeft = Math.max(
@@ -1207,14 +1327,107 @@ export default function App() {
                       transform={`translate(${midX} ${midY}) scale(${1 / mapZoom})`}
                       className="route-eta"
                     >
-                      <rect x="-13" y="-7" width="26" height="14" rx="4" />
-                      <text y="1">
-                        {turnsLeft}T
-                      </text>
+                      <rect
+                        x="-13"
+                        y="-7"
+                        width="26"
+                        height="14"
+                        rx="4"
+                      />
+                      <text y="1">{turnsLeft}T</text>
                     </g>
                   </g>
                 );
               })}
+
+            {mode === "game" &&
+              fieldArmies.map((army) => {
+                const total = Object.values(army.units).reduce(
+                  (sum, quantity) => sum + quantity,
+                  0
+                );
+                return (
+                  <g
+                    key={army.id + "-army-" + offset}
+                    transform={`translate(${army.x + offset} ${army.y}) scale(${1 / mapZoom})`}
+                    className="field-army-marker"
+                  >
+                    <circle r="8" />
+                    <path d="M-4 3 L0 -5 L4 3 Z" />
+                    <text y="13">{total}</text>
+                  </g>
+                );
+              })}
+
+            {mode === "game" &&
+              moveSourceCode &&
+              (() => {
+                const source = CITIES.find(
+                  (city) => city.code === moveSourceCode
+                );
+                if (!source) return null;
+                const [sx, sy] = project([source.lon, source.lat]);
+                const currentTarget = moveDragTarget ?? {
+                  x: sx,
+                  y: sy,
+                };
+                const previewX = shortestWrappedTargetX(
+                  sx,
+                  currentTarget.x
+                );
+                const previewDistance = haversinePoints(source, {
+                  lon: unproject([
+                    currentTarget.x,
+                    currentTarget.y,
+                  ])[0],
+                  lat: unproject([
+                    currentTarget.x,
+                    currentTarget.y,
+                  ])[1],
+                });
+                return (
+                  <g className="free-move-drag-layer">
+                    {moveDragTarget && (
+                      <>
+                        <line
+                          x1={sx + offset}
+                          y1={sy}
+                          x2={previewX + offset}
+                          y2={currentTarget.y}
+                          className="drag-preview-route"
+                        />
+                        <g
+                          transform={`translate(${previewX + offset} ${currentTarget.y}) scale(${1 / mapZoom})`}
+                          className="drop-preview-marker"
+                        >
+                          <circle r="7" />
+                          <text y="15">
+                            {Math.round(
+                              previewDistance
+                            ).toLocaleString("tr-TR")} km
+                          </text>
+                        </g>
+                      </>
+                    )}
+                    <g
+                      transform={`translate(${sx + offset} ${sy}) scale(${1 / mapZoom})`}
+                      className="draggable-army-token"
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        moveDragRef.current = {
+                          pointerId: event.pointerId,
+                        };
+                        setMoveDragTarget({ x: sx, y: sy });
+                      }}
+                    >
+                      <circle r="10" />
+                      <path d="M-5 3 L0 -6 L5 3 Z" />
+                      <text y="17">{moveSelectionCount}</text>
+                    </g>
+                  </g>
+                );
+              })()}
+
           </g>
         ))}
       </svg>
@@ -2146,8 +2359,8 @@ export default function App() {
         {moveSourceCode && (
           <div className="target-hint">
             <span>
-              HEDEF ŞEHRİ SEÇ · {moveSelectionCount} birlik · 1 tur menzili{" "}
-              {Math.round(activeMoveRangeKm).toLocaleString("tr-TR")} km · yeşil: 1 tur / sarı: çok turlu
+              BİRLİK İŞARETİNİ TUTUP SÜRÜKLE · {moveSelectionCount} birlik · 1 tur menzili{" "}
+              {Math.round(activeMoveRangeKm).toLocaleString("tr-TR")} km
             </span>
             <button
               onClick={() => {
