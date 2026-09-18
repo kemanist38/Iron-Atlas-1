@@ -1566,16 +1566,19 @@ export default function App() {
                   selectedCityCode === city.code;
                 const targetDistance =
                   activeMoveSource && activeMoveRangeKm > 0
-                    ? haversineKm(activeMoveSource, city)
+                    ? haversinePoints(activeMoveSource, city)
                     : 0;
                 const inTargetMode = Boolean(activeMoveSource);
+                const isSameSourceCity =
+                  activeMoveSource?.sourceKind === "city" &&
+                  city.code === activeMoveSource.id;
                 const isReachableTarget =
                   inTargetMode &&
-                  city.code !== activeMoveSource?.code &&
+                  !isSameSourceCity &&
                   targetDistance <= activeMoveRangeKm;
                 const isMultiTurnTarget =
                   inTargetMode &&
-                  city.code !== activeMoveSource?.code &&
+                  !isSameSourceCity &&
                   targetDistance > activeMoveRangeKm;
                 const showLabel =
                   mapZoom >= 1.35 ||
