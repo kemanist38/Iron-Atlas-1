@@ -63,6 +63,16 @@ const cityNodes = [
   { name: "Tokyo", lon: 139.69, lat: 35.68, code: "JPN" },
 ];
 
+const cityPrimaryUnits: Record<string, { unitId: string; count: number }> = {
+  TUR: { unitId: "heavy_tank", count: 50 },
+  DEU: { unitId: "infantry", count: 650 },
+  RUS: { unitId: "heavy_tank", count: 72 },
+  FRA: { unitId: "infantry", count: 500 },
+  USA: { unitId: "fighter", count: 34 },
+  CHN: { unitId: "light_tank", count: 60 },
+  JPN: { unitId: "fighter", count: 18 },
+};
+
 function project([lon, lat]: Position) {
   const x = ((lon + 180) / 360) * 1000;
   const y = ((90 - lat) / 180) * 500;
@@ -384,6 +394,9 @@ export default function App() {
 
                 {cityNodes.map((city) => {
                   const [x, y] = project([city.lon, city.lat]);
+                  const primary = cityPrimaryUnits[city.code];
+                  const icon = primary ? UNIT_ICON_BY_ID[primary.unitId] : undefined;
+
                   return (
                     <g
                       className="city"
@@ -394,6 +407,23 @@ export default function App() {
                       <text x={x + 6} y={y - 5}>
                         {city.name}
                       </text>
+
+                      {icon && primary && (
+                        <g className="map-unit-marker">
+                          <rect x={x - 16} y={y + 7} width="42" height="28" rx="5" />
+                          <image
+                            href={icon}
+                            x={x - 13}
+                            y={y + 9}
+                            width="22"
+                            height="22"
+                            preserveAspectRatio="xMidYMid meet"
+                          />
+                          <text x={x + 13} y={y + 25}>
+                            {primary.count}
+                          </text>
+                        </g>
+                      )}
                     </g>
                   );
                 })}
