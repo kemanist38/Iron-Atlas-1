@@ -440,21 +440,29 @@ function countryGrowth(countryCode: string) {
 }
 
 function startingGarrison(city: CityNode) {
-  if (city.isCapital) {
-    return {
-      infantry: 80,
-      militia: 30,
-      light_tank: 14,
-      heavy_tank: 5,
-      fighter: 5,
-      attack_helicopter: 4,
-    };
+  const base: Record<string, number> = city.isCapital
+    ? {
+        infantry: 80,
+        militia: 30,
+        light_tank: 14,
+        heavy_tank: 5,
+        fighter: 5,
+        attack_helicopter: 4,
+        transport_plane: 3,
+      }
+    : {
+        infantry: 12 + city.recruitCapacity * 4,
+        militia: 6,
+        light_tank:
+          Math.max(0, city.recruitCapacity - 1) * 2,
+      };
+
+  if (cityHasPort(city.code)) {
+    base.support_ship = city.isCapital ? 3 : 2;
+    base.destroyer = city.isCapital ? 2 : 1;
   }
-  return {
-    infantry: 12 + city.recruitCapacity * 4,
-    militia: 6,
-    light_tank: Math.max(0, city.recruitCapacity - 1) * 2,
-  };
+
+  return base;
 }
 
 export default function App() {
