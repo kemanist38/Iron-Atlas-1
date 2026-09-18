@@ -1338,3 +1338,21 @@ button:disabled {
   font-weight: 900;
   text-anchor: middle;
 }
+
+
+.drag-preview-route.invalid {
+  stroke: #ff6258;
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+
+.drop-preview-marker.invalid circle {
+  fill: rgba(176, 31, 26, 0.3);
+  stroke: #ff6a61;
+  stroke-width: 2.4;
+}
+
+.drop-preview-marker.invalid text {
+  fill: #ffd2ce;
+  stroke: #3a0806;
+}
