@@ -1311,11 +1311,13 @@ export default function App() {
       setNotice("Maksimum oyun turuna ulaşıldı.");
       return;
     }
+
     const nextTurn = turn + 1;
     const nextGarrisons: Garrison = {};
     Object.entries(garrisons).forEach(([cityCode, units]) => {
       nextGarrisons[cityCode] = { ...units };
     });
+
     const nextCityOwners = { ...cityOwners };
     const nextCountryOwners = { ...countryOwners };
     const combatLog: string[] = [];
@@ -1332,104 +1334,196 @@ export default function App() {
       units: { ...army.units },
     }));
 
-    arrivingMovementOrders.forEach((order) => {
-      const targetCity = order.targetCityCode
-        ? CITIES.find(
-            (city) => city.code === order.targetCityCode
-          )
-        : undefined;
+    const fieldOrders = arrivingMovementOrders.filter(
+      (order) => !order.targetCityCode
+    );
 
-      if (!targetCity) {
-        const existingArmy = nextFieldArmies.find(
-          (army) =>
-            army.player === order.player &&
-            Math.abs(army.x - order.targetX) < 1 &&
-            Math.abs(army.y - order.targetY) < 1
-        );
-        if (existingArmy) {
-          existingArmy.units[order.unitId] =
-            (existingArmy.units[order.unitId] ?? 0) +
-            order.quantity;
-        } else {
-          nextFieldArmies.push({
-            id: orderIdRef.current++,
-            player: order.player,
-            x: order.targetX,
-            y: order.targetY,
-            units: { [order.unitId]: order.quantity },
-          });
-        }
-        return;
+    fieldOrders.forEach((order) => {
+      const existingArmy = nextFieldArmies.find(
+        (army) =>
+          army.player === order.player &&
+          Math.abs(army.x - order.targetX) < 1 &&
+          Math.abs(army.y - order.targetY) < 1
+      );
+
+      if (existingArmy) {
+        existingArmy.units[order.unitId] =
+          (existingArmy.units[order.unitId] ?? 0) +
+          order.quantity;
+      } else {
+        nextFieldArmies.push({
+          id: orderIdRef.current++,
+          player: order.player,
+          x: order.targetX,
+          y: order.targetY,
+          units: { [order.unitId]: order.quantity },
+        });
       }
+    });
+
+    type CityAttackGroup = {
+      player: string;
+      targetCityCode: string;
+      units: Record<string, number>;
+      sourceX: number;
+      sourceY: number;
+    };
+
+    const cityGroups = new Map<string, CityAttackGroup>();
+
+    arrivingMovementOrders
+      .filter((order) => Boolean(order.targetCityCode))
+      .forEach((order) => {
+        const targetCode = order.targetCityCode!;
+        const key = targetCode + "::" + order.player;
+        const current = cityGroups.get(key) ?? {
+          player: order.player,
+          targetCityCode: targetCode,
+          units: {},
+          sourceX: order.sourceX,
+          sourceY: order.sourceY,
+        };
+        current.units[order.unitId] =
+          (current.units[order.unitId] ?? 0) +
+          order.quantity;
+        cityGroups.set(key, current);
+      });
+
+    cityGroups.forEach((group) => {
+      const targetCity = CITIES.find(
+        (city) => city.code === group.targetCityCode
+      );
+      if (!targetCity) return;
 
       const targetOwner =
         nextCityOwners[targetCity.code] ?? null;
 
-      if (targetOwner === order.player) {
-        nextGarrisons[targetCity.code] = {
-          ...(nextGarrisons[targetCity.code] ?? {}),
-          [order.unitId]:
-            (nextGarrisons[targetCity.code]?.[order.unitId] ??
-              0) + order.quantity,
-        };
+      if (targetOwner === group.player) {
+        nextGarrisons[targetCity.code] = mergeArmy(
+          nextGarrisons[targetCity.code] ?? {},
+          group.units
+        );
+        combatLog.push(
+          `${targetCity.name}: ${Object.values(group.units).reduce(
+            (sum, quantity) => sum + quantity,
+            0
+          )} birlik şehre ulaştı.`
+        );
         return;
       }
 
-      const baseUnit = UNIT_BY_ID[order.unitId];
-      if (!baseUnit) return;
-      const attacker =
-        order.player === currentPlayer
-          ? effectiveUnit(baseUnit)
-          : baseUnit;
       const defenders =
         nextGarrisons[targetCity.code] ?? {};
-      const defensePower = unitDefensePower(defenders);
-      const attackPower =
-        order.quantity *
-        Math.max(1, attacker.stats.attack) *
-        (1 + attacker.stats.critical / 25);
+      const rawDefensePower = unitDefensePower(defenders);
+      const capitalDefenseMultiplier =
+        targetCity.isCapital ? 1.18 : 1;
+      const defensePower =
+        rawDefensePower * capitalDefenseMultiplier;
+
+      const attackPower = unitAttackPower(
+        group.units,
+        group.player === currentPlayer
+          ? effectiveUnit
+          : undefined
+      );
+
+      const attackerCount = Object.values(group.units).reduce(
+        (sum, quantity) => sum + quantity,
+        0
+      );
+      const defenderCount = Object.values(defenders).reduce(
+        (sum, quantity) => sum + quantity,
+        0
+      );
 
       if (
         defensePower <= 0 ||
-        attackPower >= defensePower * 0.9
+        attackPower >= defensePower * 0.92
       ) {
-        const survivors = Math.max(
-          1,
-          Math.round(
-            order.quantity *
-              (1 -
-                Math.min(
-                  0.72,
-                  defensePower /
-                    Math.max(1, attackPower * 2.2)
-                ))
-          )
+        const attackerLossRatio =
+          defensePower <= 0
+            ? 0
+            : Math.min(
+                0.72,
+                defensePower /
+                  Math.max(1, attackPower * 1.9)
+              );
+        const survivors = scaleArmy(
+          group.units,
+          1 - attackerLossRatio
         );
-        nextGarrisons[targetCity.code] = {
-          [order.unitId]: survivors,
-        };
-        nextCityOwners[targetCity.code] = order.player;
+        const survivorCount = Object.values(survivors).reduce(
+          (sum, quantity) => sum + quantity,
+          0
+        );
+
+        nextGarrisons[targetCity.code] = survivors;
+        nextCityOwners[targetCity.code] = group.player;
+
         combatLog.push(
-          `${targetCity.name} ${order.player} tarafından ele geçirildi.`
+          `${targetCity.name} ele geçirildi: ${group.player} · saldıran ${attackerCount} → ${survivorCount}, savunan ${defenderCount} → 0.`
         );
       } else {
-        const lossRatio = Math.min(
-          0.6,
-          attackPower / Math.max(1, defensePower * 1.6)
+        const defenderLossRatio = Math.min(
+          0.68,
+          attackPower /
+            Math.max(1, defensePower * 1.45)
         );
-        const reduced: Record<string, number> = {};
-        Object.entries(defenders).forEach(
-          ([unitId, quantity]) => {
-            const left = Math.max(
-              0,
-              Math.round(quantity * (1 - lossRatio))
+        const reducedDefenders = scaleArmy(
+          defenders,
+          1 - defenderLossRatio
+        );
+        nextGarrisons[targetCity.code] = reducedDefenders;
+
+        const attackerSurvivorRatio = Math.max(
+          0.08,
+          1 -
+            Math.min(
+              0.9,
+              defensePower /
+                Math.max(1, attackPower * 1.22)
+            )
+        );
+        const retreating = scaleArmy(
+          group.units,
+          attackerSurvivorRatio
+        );
+        const retreatCount = Object.values(retreating).reduce(
+          (sum, quantity) => sum + quantity,
+          0
+        );
+        const defenderLeft = Object.values(
+          reducedDefenders
+        ).reduce(
+          (sum, quantity) => sum + quantity,
+          0
+        );
+
+        if (retreatCount > 0) {
+          const existingRetreat = nextFieldArmies.find(
+            (army) =>
+              army.player === group.player &&
+              Math.abs(army.x - group.sourceX) < 1 &&
+              Math.abs(army.y - group.sourceY) < 1
+          );
+          if (existingRetreat) {
+            existingRetreat.units = mergeArmy(
+              existingRetreat.units,
+              retreating
             );
-            if (left > 0) reduced[unitId] = left;
+          } else {
+            nextFieldArmies.push({
+              id: orderIdRef.current++,
+              player: group.player,
+              x: group.sourceX,
+              y: group.sourceY,
+              units: retreating,
+            });
           }
-        );
-        nextGarrisons[targetCity.code] = reduced;
+        }
+
         combatLog.push(
-          `${targetCity.name} saldırıyı püskürttü.`
+          `${targetCity.name} saldırıyı püskürttü: saldıran ${attackerCount} → ${retreatCount}, savunan ${defenderCount} → ${defenderLeft}.`
         );
       }
     });
@@ -1444,26 +1538,43 @@ export default function App() {
       (order) =>
         nextCityOwners[order.cityCode] === order.player
     );
+
     completed.forEach((order) => {
       if (
         nextCityOwners[order.cityCode] !== order.player
       ) {
+        combatLog.push(
+          `${order.cityCode}: şehir el değiştirdiği için üretim iptal oldu.`
+        );
         return;
       }
+
       nextGarrisons[order.cityCode] = {
         ...(nextGarrisons[order.cityCode] ?? {}),
         [order.unitId]:
           (nextGarrisons[order.cityCode]?.[order.unitId] ??
             0) + order.quantity,
       };
+
+      const city = CITIES.find(
+        (item) => item.code === order.cityCode
+      );
+      const unit = UNIT_BY_ID[order.unitId];
+      if (city && unit) {
+        combatLog.push(
+          `${city.name}: ${order.quantity} × ${unit.name} üretimi tamamlandı.`
+        );
+      }
     });
 
     const nextHolds = { ...capitalHolds };
+
     COUNTRIES.forEach((country) => {
       const capital = citiesForCountry(country.code).find(
         (city) => city.isCapital
       );
       if (!capital) return;
+
       const capitalOwner =
         nextCityOwners[capital.code] ?? null;
       const strategicOwner =
@@ -1478,13 +1589,24 @@ export default function App() {
           previous?.holder === capitalOwner
             ? previous.turns + 1
             : 1;
+
         nextHolds[country.code] = {
           holder: capitalOwner,
           turns,
         };
+
+        combatLog.push(
+          `${country.name} başkenti ${capitalOwner} kontrolünde: ${turns}/${victoryHoldTurns} tur.`
+        );
+
         if (turns >= victoryHoldTurns) {
-          nextCountryOwners[country.code] =
-            capitalOwner;
+          if (nextCountryOwners[country.code] !== capitalOwner) {
+            nextCountryOwners[country.code] =
+              capitalOwner;
+            combatLog.push(
+              `${country.name}: stratejik ülke kontrolü ${capitalOwner} oyuncusuna geçti.`
+            );
+          }
         }
       } else {
         nextHolds[country.code] = {
@@ -1532,10 +1654,22 @@ export default function App() {
     setCapitalHolds(nextHolds);
     setProductionQueue(validPending);
     setMovementQueue(inTransitMovementOrders);
-    setFieldArmies(nextFieldArmies);
+    setFieldArmies(
+      nextFieldArmies.filter((army) =>
+        Object.values(army.units).some(
+          (quantity) => quantity > 0
+        )
+      )
+    );
     setTurn(nextTurn);
+    setLastTurnEvents(combatLog.slice(-8));
+
     setNotice(
-      `Tur ${nextTurn}: +${goldIncome} Altın, +${steelIncome} Çelik, +${oilIncome} Petrol.${combatLog.length ? " " + combatLog.join(" ") : ""}`
+      `Tur ${nextTurn}: +${goldIncome} Altın, +${steelIncome} Çelik, +${oilIncome} Petrol.${
+        combatLog.length
+          ? " " + combatLog[combatLog.length - 1]
+          : ""
+      }`
     );
   }
 
