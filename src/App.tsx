@@ -219,7 +219,8 @@ function routeStaysOnSurface(
   source: { lon: number; lat: number },
   target: { lon: number; lat: number },
   surface: "land" | "naval" | "air",
-  coastalDeparture = false
+  coastalDeparture = false,
+  coastalArrival = false
 ) {
   if (surface === "air") return true;
 
@@ -230,8 +231,12 @@ function routeStaysOnSurface(
   const steps = 18;
   const startStep =
     surface === "naval" && coastalDeparture ? 4 : 1;
+  const endStep =
+    surface === "naval" && coastalArrival
+      ? steps - 3
+      : steps;
 
-  for (let step = startStep; step <= steps; step += 1) {
+  for (let step = startStep; step <= endStep; step += 1) {
     const ratio = step / steps;
     let lon = source.lon + dLon * ratio;
     if (lon > 180) lon -= 360;
@@ -1108,6 +1113,28 @@ export default function App() {
       return;
     }
 
+    const nearestCity = CITIES.reduce<{
+      city: CityNode | null;
+      distance: number;
+    }>(
+      (best, city) => {
+        const distance = haversinePoints(city, targetPoint);
+        return distance < best.distance
+          ? { city, distance }
+          : best;
+      },
+      { city: null, distance: Number.POSITIVE_INFINITY }
+    );
+
+    const targetCity =
+      nearestCity.city && nearestCity.distance <= 120
+        ? nearestCity.city
+        : null;
+    const targetIsFriendlyPort =
+      Boolean(targetCity) &&
+      cityHasPort(targetCity!.code) &&
+      cityOwners[targetCity!.code] === currentPlayer;
+
     const targetIsLand = isLandPoint(
       world,
       targetLon,
@@ -1121,9 +1148,13 @@ export default function App() {
       return;
     }
 
-    if (moveSurface === "naval" && targetIsLand) {
+    if (
+      moveSurface === "naval" &&
+      targetIsLand &&
+      !targetIsFriendlyPort
+    ) {
       setNotice(
-        "Deniz birlikleri karaya bırakılamaz. Birliği deniz alanına bırak."
+        "Deniz birlikleri karaya bırakılamaz. Yalnızca denize veya kendi liman şehrine bırakabilirsin."
       );
       return;
     }
@@ -1146,7 +1177,15 @@ export default function App() {
         sourcePoint,
         targetPoint,
         moveSurface,
-        Boolean(sourceCity && moveSurface === "naval")
+        Boolean(
+          sourceCity &&
+            moveSurface === "naval" &&
+            cityHasPort(sourceCity.code)
+        ),
+        Boolean(
+          targetIsFriendlyPort &&
+            moveSurface === "naval"
+        )
       );
 
     if (!routeAllowed) {
@@ -1158,23 +1197,18 @@ export default function App() {
       return;
     }
 
-    const nearestCity = CITIES.reduce<{
-      city: CityNode | null;
-      distance: number;
-    }>(
-      (best, city) => {
-        const distance = haversinePoints(city, targetPoint);
-        return distance < best.distance
-          ? { city, distance }
-          : best;
-      },
-      { city: null, distance: Number.POSITIVE_INFINITY }
-    );
-
-    const targetCity =
-      nearestCity.city && nearestCity.distance <= 120
-        ? nearestCity.city
-        : null;
+    if (
+      targetCity &&
+      cityOwners[targetCity.code] !== currentPlayer &&
+      moveSurface !== "land"
+    ) {
+      setNotice(
+        moveSurface === "naval"
+          ? "Deniz birlikleri tek başına şehir işgal edemez. Düşman limanına kara/amfibi birlik göndermelisin."
+          : "Hava birlikleri tek başına şehir işgal edemez. Şehri ele geçirmek için kara birliği gönder."
+      );
+      return;
+    }
 
     const sourceUnits = sourceCity
       ? { ...(garrisons[sourceCity.code] ?? {}) }
@@ -1852,7 +1886,21 @@ export default function App() {
                     moveSurface,
                     Boolean(
                       activeMoveSource.sourceKind === "city" &&
-                        moveSurface === "naval"
+                        moveSurface === "naval" &&
+                        cityHasPort(String(activeMoveSource.id))
+                    ),
+                    Boolean(
+                      moveSurface === "naval" &&
+                        CITIES.some(
+                          (city) =>
+                            cityHasPort(city.code) &&
+                            cityOwners[city.code] ===
+                              currentPlayer &&
+                            haversinePoints(city, {
+                              lon: previewLon,
+                              lat: previewLat,
+                            }) <= 120
+                        )
                     )
                   );
                 const previewInvalid =
