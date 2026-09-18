@@ -1175,3 +1175,86 @@ input:focus {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* v1.0 compact map readability */
+.city-fixed-marker {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.city-fixed-marker.selected-city .recruit-city-node {
+  stroke: #ffffff;
+  stroke-width: 1.8;
+  filter: drop-shadow(0 0 3px rgba(255,255,255,.55));
+}
+
+.city-fixed-marker.selected-city .capital-city-star {
+  fill: #f0c85b;
+  stroke: #ffffff;
+  filter: drop-shadow(0 0 4px rgba(240,200,91,.6));
+}
+
+.city-economic-label > text:first-child {
+  font-size: 8px;
+  font-weight: 800;
+  fill: #d7dadd;
+  stroke-width: 2px;
+}
+
+.city-economic-label .city-income {
+  font-size: 7px;
+  fill: #e3bb4f;
+  stroke-width: 1.8px;
+}
+
+.city-economic-label .city-growth {
+  font-size: 6px;
+  fill: #d4d9dc;
+  stroke-width: 1.7px;
+}
+
+.radar-stack-row {
+  pointer-events: none;
+}
+
+.radar-blip circle {
+  fill: rgba(7, 16, 26, .96);
+  stroke: #58748d;
+  stroke-width: 1;
+}
+
+.radar-blip image {
+  pointer-events: none;
+  filter: saturate(.65) contrast(1.1);
+}
+
+.radar-infantry circle {
+  stroke: #9aa7b2;
+}
+
+.radar-tank circle {
+  stroke: #d0a84d;
+}
+
+.radar-air circle {
+  stroke: #6aa7d8;
+}
+
+.radar-naval circle {
+  stroke: #67b1b9;
+}
+
+.radar-count {
+  fill: #f2f3f4;
+  font-size: 5.5px;
+  font-weight: 900;
+  paint-order: stroke;
+  stroke: #05090e;
+  stroke-width: 1.5px;
+}
+
+/* Old large unit cards are no longer used on the map */
+.map-unit-marker {
+  display: none;
+}
