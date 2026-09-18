@@ -727,20 +727,30 @@ export default function App() {
 
   function advanceTurn() {
     const nextTurn = turn + 1;
-    const completed = productionQueue.filter((order) => order.readyTurn <= nextTurn);
-    const pending = productionQueue.filter((order) => order.readyTurn > nextTurn);
+    const completed = productionQueue.filter(
+      (order) => order.readyTurn <= nextTurn
+    );
+    const pending = productionQueue.filter(
+      (order) => order.readyTurn > nextTurn
+    );
 
     const nextGarrisons: Garrison = {};
     Object.entries(garrisons).forEach(([code, units]) => {
       nextGarrisons[code] = { ...units };
     });
 
+    const nextCityOwners = { ...cityOwners };
+    const nextCountryState = { ...countryState };
+    const nextCapitalHold: CapitalHoldState = { ...capitalHoldTurns };
+
     const movedTexts: string[] = [];
     const combatTexts: string[] = [];
+    const capitalTexts: string[] = [];
     const capturedCodes: string[] = [];
 
     movementQueue.forEach((order) => {
-      const available = nextGarrisons[order.fromCode]?.[order.unitId] ?? 0;
+      const available =
+        nextGarrisons[order.fromCode]?.[order.unitId] ?? 0;
       const committed = Math.min(available, order.quantity);
       if (committed <= 0) return;
 
@@ -752,79 +762,210 @@ export default function App() {
       if (order.kind === "move") {
         nextGarrisons[order.toCode] = {
           ...(nextGarrisons[order.toCode] ?? {}),
-          [order.unitId]: (nextGarrisons[order.toCode]?.[order.unitId] ?? 0) + committed,
+          [order.unitId]:
+            (nextGarrisons[order.toCode]?.[order.unitId] ?? 0) +
+            committed,
         };
-        movedTexts.push(order.fromCity + " → " + order.toCity + ": " + committed + " " + order.unitName);
+
+        movedTexts.push(
+          order.fromCity +
+            " → " +
+            order.toCity +
+            ": " +
+            committed +
+            " " +
+            order.unitName
+        );
         return;
       }
 
       const attacker = unitDefinition(order.unitId);
       if (!attacker) return;
 
-      const defenders = { ...(nextGarrisons[order.toCode] ?? {}) };
+      const defenders = {
+        ...(nextGarrisons[order.toCode] ?? {}),
+      };
       const defensePower = totalDefensePower(defenders);
-      const attackPower = committed * attacker.stats.attack * (1 + attacker.stats.critical * 0.04);
+      const attackPower =
+        committed *
+        attacker.stats.attack *
+        (1 + attacker.stats.critical * 0.04);
 
       if (defensePower <= 0) {
-        nextGarrisons[order.toCode] = { [order.unitId]: committed };
+        nextGarrisons[order.toCode] = {
+          [order.unitId]: committed,
+        };
         capturedCodes.push(order.toCode);
-        combatTexts.push(order.toCity + " savunmasızdı; şehir ele geçirildi.");
+        combatTexts.push(
+          order.toCity + " savunmasızdı; şehir ele geçirildi."
+        );
         return;
       }
 
-      const defenderLossFraction = Math.min(1, attackPower / Math.max(1, defensePower * 1.25));
-      const attackerLossFraction = Math.min(1, defensePower / Math.max(1, attackPower * 1.4));
+      const defenderLossFraction = Math.min(
+        1,
+        attackPower / Math.max(1, defensePower * 1.25)
+      );
+      const attackerLossFraction = Math.min(
+        1,
+        defensePower / Math.max(1, attackPower * 1.4)
+      );
 
       const reducedDefenders: Record<string, number> = {};
       Object.entries(defenders).forEach(([unitId, quantity]) => {
-        const remaining = Math.max(0, Math.round(quantity * (1 - defenderLossFraction)));
+        const remaining = Math.max(
+          0,
+          Math.round(quantity * (1 - defenderLossFraction))
+        );
         if (remaining > 0) reducedDefenders[unitId] = remaining;
       });
 
-      const attackerSurvivors = Math.max(0, Math.round(committed * (1 - attackerLossFraction)));
-      const remainingDefenders = Object.values(reducedDefenders).reduce((sum, quantity) => sum + quantity, 0);
+      const attackerSurvivors = Math.max(
+        0,
+        Math.round(committed * (1 - attackerLossFraction))
+      );
+      const remainingDefenders = Object.values(
+        reducedDefenders
+      ).reduce((sum, quantity) => sum + quantity, 0);
 
       if (remainingDefenders === 0 && attackerSurvivors > 0) {
-        nextGarrisons[order.toCode] = { [order.unitId]: attackerSurvivors };
+        nextGarrisons[order.toCode] = {
+          [order.unitId]: attackerSurvivors,
+        };
         capturedCodes.push(order.toCode);
-        combatTexts.push(order.toCity + " ele geçirildi. " + attackerSurvivors + "/" + committed + " " + order.unitName + " hayatta kaldı.");
+        combatTexts.push(
+          order.toCity +
+            " ele geçirildi. " +
+            attackerSurvivors +
+            "/" +
+            committed +
+            " " +
+            order.unitName +
+            " hayatta kaldı."
+        );
       } else {
         nextGarrisons[order.toCode] = reducedDefenders;
-        combatTexts.push(order.toCity + " saldırısı püskürtüldü. Saldıran kayıp: " + (committed - attackerSurvivors) + ".");
+        combatTexts.push(
+          order.toCity +
+            " saldırısı püskürtüldü. Saldıran kayıp: " +
+            (committed - attackerSurvivors) +
+            "."
+        );
       }
     });
 
-    completed.forEach((order) => {
+    capturedCodes.forEach((code) => {
+      nextCityOwners[code] = currentPlayer;
+    });
+
+    const completedValid = completed.filter(
+      (order) => nextCityOwners[order.countryId] === order.player
+    );
+
+    completedValid.forEach((order) => {
       nextGarrisons[order.countryId] = {
         ...(nextGarrisons[order.countryId] ?? {}),
-        [order.unitId]: (nextGarrisons[order.countryId]?.[order.unitId] ?? 0) + order.quantity,
+        [order.unitId]:
+          (nextGarrisons[order.countryId]?.[order.unitId] ?? 0) +
+          order.quantity,
       };
     });
 
-    setGarrisons(nextGarrisons);
+    const remainingProduction = pending.filter(
+      (order) => nextCityOwners[order.countryId] === order.player
+    );
 
-    if (capturedCodes.length > 0) {
-      setCountryState((current) => {
-        const next = { ...current };
-        capturedCodes.forEach((code) => {
-          const capturedCity = cityNodes.find((city) => city.code === code);
-          if (!capturedCity) return;
-          const countryCode = capturedCity.countryCode;
-          next[countryCode] = {
-            ...(next[countryCode] ?? { troops: 5, resource: "Gıda" }),
-            owner: currentPlayer,
+    const cancelledProductionCount =
+      productionQueue.length -
+      completedValid.length -
+      remainingProduction.length;
+
+    const countryCodes = Array.from(
+      new Set(cityNodes.map((city) => city.countryCode))
+    );
+
+    countryCodes.forEach((countryCode) => {
+      const capital = cityNodes.find(
+        (city) =>
+          city.countryCode === countryCode && city.isCapital
+      );
+      if (!capital) return;
+
+      const capitalOwner =
+        nextCityOwners[capital.code] ?? null;
+      const strategicOwner =
+        nextCountryState[countryCode]?.owner ?? null;
+
+      if (
+        capitalOwner &&
+        capitalOwner !== strategicOwner
+      ) {
+        const previous = nextCapitalHold[countryCode];
+        const turns =
+          previous?.holder === capitalOwner
+            ? previous.turns + 1
+            : 1;
+
+        nextCapitalHold[countryCode] = {
+          holder: capitalOwner,
+          turns,
+        };
+
+        capitalTexts.push(
+          capital.name +
+            ": " +
+            capitalOwner +
+            " başkenti " +
+            turns +
+            "/" +
+            CAPITAL_HOLD_TURNS_REQUIRED +
+            " tur tutuyor."
+        );
+
+        if (turns >= CAPITAL_HOLD_TURNS_REQUIRED) {
+          nextCountryState[countryCode] = {
+            ...(nextCountryState[countryCode] ?? {
+              troops: 5,
+              resource: "Gıda",
+            }),
+            owner: capitalOwner,
           };
-        });
-        return next;
-      });
-    }
 
-    const completedText = completed
-      .map((order) => order.cityName + ": +" + order.quantity + " " + order.unitName)
+          capitalTexts.push(
+            countryCode +
+              " stratejik kontrolü " +
+              capitalOwner +
+              " tarafına geçti."
+          );
+        }
+      } else {
+        nextCapitalHold[countryCode] = {
+          holder: capitalOwner,
+          turns: 0,
+        };
+      }
+    });
+
+    setGarrisons(nextGarrisons);
+    setCityOwners(nextCityOwners);
+    setCountryState(nextCountryState);
+    setCapitalHoldTurns(nextCapitalHold);
+
+    const completedText = completedValid
+      .map(
+        (order) =>
+          order.cityName +
+          ": +" +
+          order.quantity +
+          " " +
+          order.unitName
+      )
       .join(" · ");
 
     const incomeGold = cityNodes.reduce((sum, city) => {
-      return countryState[city.countryCode]?.owner === currentPlayer ? sum + Math.round(city.income * 0.1) : sum;
+      return nextCityOwners[city.code] === currentPlayer
+        ? sum + Math.round(city.income * 0.1)
+        : sum;
     }, 0);
 
     setResources((current) => ({
@@ -835,14 +976,27 @@ export default function App() {
 
     const messages = [
       "Tur " + nextTurn + " başladı.",
-      movedTexts.length ? "Hareket: " + movedTexts.join(" · ") : "",
-      combatTexts.length ? "Savaş: " + combatTexts.join(" · ") : "",
-      completedText ? "Üretim: " + completedText : "",
+      movedTexts.length
+        ? "Hareket: " + movedTexts.join(" · ")
+        : "",
+      combatTexts.length
+        ? "Savaş: " + combatTexts.join(" · ")
+        : "",
+      capitalTexts.length
+        ? "Başkent: " + capitalTexts.join(" · ")
+        : "",
+      completedText
+        ? "Üretim: " + completedText
+        : "",
+      cancelledProductionCount > 0
+        ? "İptal edilen üretim emri: " +
+          cancelledProductionCount
+        : "",
       "Şehir geliri: +" + incomeGold + " Altın",
     ].filter(Boolean);
 
     setNotice(messages.join(" | "));
-    setProductionQueue(pending);
+    setProductionQueue(remainingProduction);
     setMovementQueue([]);
     setMoveSourceCode(null);
     setTurn(nextTurn);
@@ -861,11 +1015,10 @@ export default function App() {
 
         <main className="lobby-shell">
           <section className="hero card">
-            <span className="eyebrow">STRATEGY PROTOTYPE • V0.7</span>
+            <span className="eyebrow">STRATEGY PROTOTYPE • V1.0</span>
             <h2>Dünyayı fethet. İttifak kur. Emirlerini aynı anda uygula.</h2>
             <p>
-              Dünya haritası, atWar tarzı temel birim istatistikleri ve şehir
-              bazlı üretim kuyruğu aynı prototipte çalışıyor.
+              Şehir sahipliği, başkent kontrolü, üretim, hareket ve savaş emirleri aynı tur sistemi içinde çalışıyor.
             </p>
 
             <div className="form-grid">
