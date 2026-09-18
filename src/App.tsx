@@ -475,13 +475,22 @@ export default function App() {
   const selectedCountryRecruitCapacity = cityNodes
     .filter((city) => city.countryCode === selectedId)
     .reduce((sum, city) => sum + city.recruitCapacity, 0);
-  const controlledCountryRecruitCapacity = cityNodes
-    .filter(
-      (city) =>
-        city.countryCode === selectedId &&
-        cityOwners[city.code] === currentPlayer
-    )
-    .reduce((sum, city) => sum + city.recruitCapacity, 0);
+  const selectedCountryCities = cityNodes.filter(
+    (city) => city.countryCode === selectedId
+  );
+  const controlledCountryCities = selectedCountryCities.filter(
+    (city) => cityOwners[city.code] === currentPlayer
+  );
+  const controlledCountryRecruitCapacity = controlledCountryCities.reduce(
+    (sum, city) => sum + city.recruitCapacity,
+    0
+  );
+  const selectedCapital = selectedCountryCities.find(
+    (city) => city.isCapital
+  );
+  const selectedCapitalOwner = selectedCapital
+    ? cityOwners[selectedCapital.code] ?? null
+    : null;
   const selectedCityActiveOrders = selectedCity
     ? productionQueue.filter((order) => order.countryId === selectedCity.code).length
     : 0;
@@ -1489,7 +1498,10 @@ export default function App() {
                 {selectedState.owner ?? "Tarafsız"} • {selectedState.troops} birlik
               </small>
               <small className="city-center">
-                Ülke asker basma kapasitesi: {selectedCountryRecruitCapacity}
+                Şehir kontrolü: {controlledCountryCities.length}/
+                {selectedCountryCities.length} · Kapasite:
+                {controlledCountryRecruitCapacity}/
+                {selectedCountryRecruitCapacity}
               </small>
               {selectedCity && (
                 <small className="city-center">
@@ -1523,6 +1535,16 @@ export default function App() {
               </b>
             </div>
           )}
+          <div className="intel-row">
+            <span>Şehir kontrolü</span>
+            <b>
+              {controlledCountryCities.length}/{selectedCountryCities.length}
+            </b>
+          </div>
+          <div className="intel-row">
+            <span>Başkent</span>
+            <b>{selectedCapitalOwner ?? "Tarafsız"}</b>
+          </div>
           <div className="intel-row">
             <span>Birlik</span>
             <b>{selectedState.troops}</b>
