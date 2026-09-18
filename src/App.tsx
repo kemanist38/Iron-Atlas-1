@@ -1446,7 +1446,11 @@ export default function App() {
           <h3>Komutanlar</h3>
 
           <div className="players">
-            {players.map((player) => (
+            {[
+              { name: currentPlayer, status: "Hazır", color: "#2687e8" },
+              { name: "Dogan", status: "Hazır", color: "#d84c4c" },
+              { name: "Nova", status: "Bekliyor", color: "#36b978" },
+            ].map((player) => (
               <div className="player" key={player.name}>
                 <i style={{ background: player.color }} />
                 <span>
@@ -1557,17 +1561,19 @@ export default function App() {
                           resource: "Gıda",
                         };
                       const owner = state.owner ?? "Neutral";
+                      const ownerVisual =
+                        owner === currentPlayer ? "Atlas" : owner;
 
                       return (
                         <path
                           key={id}
                           d={geometryToPath(feature.geometry)}
                           fill={
-                            PLAYER_COLORS[owner] ?? PLAYER_COLORS.Neutral
+                            PLAYER_COLORS[ownerVisual] ?? PLAYER_COLORS.Neutral
                           }
                           className={
                             "country owner-" +
-                            owner.toLowerCase() +
+                            ownerVisual.toLowerCase() +
                             " " +
                             (selectedId === id ? "selected" : "")
                           }
@@ -1620,6 +1626,9 @@ export default function App() {
                       const radarStacks = getRadarStacks(cityGarrison);
                       const isSelectedCity = selectedCityId === city.code;
                       const isSelectedCountry = selectedId === city.countryCode;
+                      const cityOwner = cityOwners[city.code] ?? "Neutral";
+                      const cityOwnerVisual =
+                        cityOwner === currentPlayer ? "Atlas" : cityOwner;
 
                       const showCityName =
                         isSelectedCity ||
@@ -1640,7 +1649,7 @@ export default function App() {
                         <g
                           className={
                             "city city-fixed-marker city-owner-" +
-                            ((cityOwners[city.code] ?? "Neutral").toLowerCase()) +
+                            cityOwnerVisual.toLowerCase() +
                             " " +
                             (isSelectedCountry ? "selected-country-city " : "") +
                             (isSelectedCity ? "selected-city" : "")
