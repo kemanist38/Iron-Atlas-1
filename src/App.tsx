@@ -58,6 +58,20 @@ type MovementOrder = {
 
 type Garrison = Record<string, Record<string, number>>;
 
+type CityNode = {
+  code: string;
+  countryCode: string;
+  name: string;
+  lon: number;
+  lat: number;
+  isCapital: boolean;
+  recruitCapacity: number;
+  income: number;
+  growth: number;
+  dx: number;
+  dy: number;
+};
+
 const MAP_URL =
   "https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson";
 
@@ -79,13 +93,13 @@ const INITIAL_COUNTRIES: Record<string, CountryState> = {
 };
 
 const INITIAL_GARRISONS: Garrison = {
-  TUR: { infantry: 1000, light_tank: 25, heavy_tank: 50, fighter: 20, attack_helicopter: 10, battleship: 2 },
-  DEU: { infantry: 650, light_tank: 26, fighter: 8 },
-  USA: { infantry: 2200, light_tank: 70, fighter: 34, attack_helicopter: 16, battleship: 6 },
-  RUS: { infantry: 1800, heavy_tank: 72, fighter: 28, attack_helicopter: 18, battleship: 4 },
-  CHN: { infantry: 2100, light_tank: 60, fighter: 26, attack_helicopter: 12, battleship: 3 },
-  FRA: { infantry: 500, light_tank: 22, fighter: 12, battleship: 2 },
-  JPN: { infantry: 700, light_tank: 18, fighter: 18, attack_helicopter: 6, battleship: 4 },
+  "TUR-ANK": { infantry: 1000, light_tank: 25, heavy_tank: 50, fighter: 20, attack_helicopter: 10, battleship: 2 },
+  "DEU-BER": { infantry: 650, light_tank: 26, fighter: 8 },
+  "USA-WAS": { infantry: 2200, light_tank: 70, fighter: 34, attack_helicopter: 16, battleship: 6 },
+  "RUS-MOW": { infantry: 1800, heavy_tank: 72, fighter: 28, attack_helicopter: 18, battleship: 4 },
+  "CHN-BJS": { infantry: 2100, light_tank: 60, fighter: 26, attack_helicopter: 12, battleship: 3 },
+  "FRA-PAR": { infantry: 500, light_tank: 22, fighter: 12, battleship: 2 },
+  "JPN-TYO": { infantry: 700, light_tank: 18, fighter: 18, attack_helicopter: 6, battleship: 4 },
 };
 
 const players = [
@@ -94,24 +108,124 @@ const players = [
   { name: "Nova", status: "Bekliyor", color: "#36b978" },
 ];
 
-const cityNodes = [
-  { name: "Ankara", lon: 32.86, lat: 39.93, code: "TUR", dx: -5, dy: 13 },
-  { name: "Berlin", lon: 13.4, lat: 52.52, code: "DEU", dx: 8, dy: 10 },
-  { name: "Moskova", lon: 37.62, lat: 55.75, code: "RUS", dx: 10, dy: -2 },
-  { name: "Paris", lon: 2.35, lat: 48.86, code: "FRA", dx: -34, dy: 11 },
-  { name: "Washington", lon: -77.04, lat: 38.9, code: "USA", dx: 7, dy: 12 },
-  { name: "Pekin", lon: 116.4, lat: 39.9, code: "CHN", dx: 8, dy: 12 },
-  { name: "Tokyo", lon: 139.69, lat: 35.68, code: "JPN", dx: 10, dy: 12 },
+const cityNodes: CityNode[] = [
+  // Türkiye — 1 başkent + 5 asker basma şehri
+  { code: "TUR-ANK", countryCode: "TUR", name: "Ankara", lon: 32.86, lat: 39.93, isCapital: true, recruitCapacity: 3, income: 920, growth: 72, dx: 8, dy: 12 },
+  { code: "TUR-IST", countryCode: "TUR", name: "İstanbul", lon: 28.98, lat: 41.01, isCapital: false, recruitCapacity: 2, income: 810, growth: 64, dx: -32, dy: -18 },
+  { code: "TUR-IZM", countryCode: "TUR", name: "İzmir", lon: 27.14, lat: 38.42, isCapital: false, recruitCapacity: 2, income: 580, growth: 42, dx: -31, dy: 12 },
+  { code: "TUR-KAY", countryCode: "TUR", name: "Kayseri", lon: 35.49, lat: 38.72, isCapital: false, recruitCapacity: 1, income: 360, growth: 28, dx: 8, dy: 13 },
+  { code: "TUR-GAZ", countryCode: "TUR", name: "Gaziantep", lon: 37.38, lat: 37.07, isCapital: false, recruitCapacity: 1, income: 390, growth: 31, dx: 8, dy: 14 },
+  { code: "TUR-SAM", countryCode: "TUR", name: "Samsun", lon: 36.33, lat: 41.29, isCapital: false, recruitCapacity: 1, income: 330, growth: 25, dx: 8, dy: -18 },
+
+  // Almanya — kullanıcının referansındaki mantık: 1 başkent + 5 şehir = 6 asker basma noktası
+  { code: "DEU-BER", countryCode: "DEU", name: "Berlin", lon: 13.40, lat: 52.52, isCapital: true, recruitCapacity: 3, income: 980, growth: 78, dx: 8, dy: -20 },
+  { code: "DEU-HAM", countryCode: "DEU", name: "Hamburg", lon: 9.99, lat: 53.55, isCapital: false, recruitCapacity: 2, income: 650, growth: 49, dx: -34, dy: -18 },
+  { code: "DEU-MUC", countryCode: "DEU", name: "Münih", lon: 11.58, lat: 48.14, isCapital: false, recruitCapacity: 2, income: 710, growth: 53, dx: 8, dy: 12 },
+  { code: "DEU-FRA", countryCode: "DEU", name: "Frankfurt", lon: 8.68, lat: 50.11, isCapital: false, recruitCapacity: 2, income: 680, growth: 51, dx: -38, dy: 10 },
+  { code: "DEU-CGN", countryCode: "DEU", name: "Köln", lon: 6.96, lat: 50.94, isCapital: false, recruitCapacity: 2, income: 590, growth: 44, dx: -35, dy: -17 },
+  { code: "DEU-LEJ", countryCode: "DEU", name: "Leipzig", lon: 12.37, lat: 51.34, isCapital: false, recruitCapacity: 1, income: 430, growth: 32, dx: 8, dy: 12 },
+
+  // Fransa
+  { code: "FRA-PAR", countryCode: "FRA", name: "Paris", lon: 2.35, lat: 48.86, isCapital: true, recruitCapacity: 3, income: 970, growth: 74, dx: -34, dy: -18 },
+  { code: "FRA-LYO", countryCode: "FRA", name: "Lyon", lon: 4.84, lat: 45.76, isCapital: false, recruitCapacity: 2, income: 570, growth: 43, dx: 8, dy: 12 },
+  { code: "FRA-MRS", countryCode: "FRA", name: "Marsilya", lon: 5.37, lat: 43.30, isCapital: false, recruitCapacity: 2, income: 540, growth: 39, dx: 8, dy: 12 },
+  { code: "FRA-BOD", countryCode: "FRA", name: "Bordeaux", lon: -0.58, lat: 44.84, isCapital: false, recruitCapacity: 1, income: 420, growth: 30, dx: -38, dy: 12 },
+  { code: "FRA-LIL", countryCode: "FRA", name: "Lille", lon: 3.06, lat: 50.63, isCapital: false, recruitCapacity: 1, income: 410, growth: 29, dx: -32, dy: -16 },
+
+  // Birleşik Krallık
+  { code: "GBR-LON", countryCode: "GBR", name: "Londra", lon: -0.13, lat: 51.51, isCapital: true, recruitCapacity: 3, income: 1040, growth: 82, dx: 8, dy: 12 },
+  { code: "GBR-MAN", countryCode: "GBR", name: "Manchester", lon: -2.24, lat: 53.48, isCapital: false, recruitCapacity: 2, income: 580, growth: 43, dx: -40, dy: -17 },
+  { code: "GBR-BHM", countryCode: "GBR", name: "Birmingham", lon: -1.89, lat: 52.49, isCapital: false, recruitCapacity: 2, income: 560, growth: 41, dx: 8, dy: 11 },
+  { code: "GBR-GLA", countryCode: "GBR", name: "Glasgow", lon: -4.25, lat: 55.86, isCapital: false, recruitCapacity: 1, income: 410, growth: 28, dx: -34, dy: -17 },
+  { code: "GBR-BFS", countryCode: "GBR", name: "Belfast", lon: -5.93, lat: 54.60, isCapital: false, recruitCapacity: 1, income: 360, growth: 24, dx: -38, dy: 12 },
+
+  // İtalya
+  { code: "ITA-ROM", countryCode: "ITA", name: "Roma", lon: 12.50, lat: 41.90, isCapital: true, recruitCapacity: 3, income: 860, growth: 65, dx: 8, dy: 12 },
+  { code: "ITA-MIL", countryCode: "ITA", name: "Milano", lon: 9.19, lat: 45.46, isCapital: false, recruitCapacity: 2, income: 720, growth: 54, dx: -35, dy: -17 },
+  { code: "ITA-NAP", countryCode: "ITA", name: "Napoli", lon: 14.27, lat: 40.85, isCapital: false, recruitCapacity: 2, income: 510, growth: 37, dx: 8, dy: 12 },
+  { code: "ITA-TRN", countryCode: "ITA", name: "Torino", lon: 7.69, lat: 45.07, isCapital: false, recruitCapacity: 1, income: 430, growth: 30, dx: -35, dy: 11 },
+  { code: "ITA-VCE", countryCode: "ITA", name: "Venedik", lon: 12.32, lat: 45.44, isCapital: false, recruitCapacity: 1, income: 390, growth: 27, dx: 8, dy: -17 },
+
+  // İspanya
+  { code: "ESP-MAD", countryCode: "ESP", name: "Madrid", lon: -3.70, lat: 40.42, isCapital: true, recruitCapacity: 3, income: 820, growth: 62, dx: 8, dy: 12 },
+  { code: "ESP-BCN", countryCode: "ESP", name: "Barcelona", lon: 2.17, lat: 41.39, isCapital: false, recruitCapacity: 2, income: 670, growth: 50, dx: 8, dy: -17 },
+  { code: "ESP-SEV", countryCode: "ESP", name: "Sevilla", lon: -5.99, lat: 37.39, isCapital: false, recruitCapacity: 1, income: 420, growth: 30, dx: -35, dy: 12 },
+  { code: "ESP-VLC", countryCode: "ESP", name: "Valencia", lon: -0.38, lat: 39.47, isCapital: false, recruitCapacity: 1, income: 440, growth: 31, dx: 8, dy: 12 },
+  { code: "ESP-BIO", countryCode: "ESP", name: "Bilbao", lon: -2.93, lat: 43.26, isCapital: false, recruitCapacity: 1, income: 370, growth: 25, dx: -33, dy: -17 },
+
+  // Polonya
+  { code: "POL-WAW", countryCode: "POL", name: "Varşova", lon: 21.01, lat: 52.23, isCapital: true, recruitCapacity: 3, income: 720, growth: 52, dx: 8, dy: -18 },
+  { code: "POL-KRK", countryCode: "POL", name: "Krakov", lon: 19.94, lat: 50.06, isCapital: false, recruitCapacity: 2, income: 450, growth: 31, dx: 8, dy: 12 },
+  { code: "POL-GDN", countryCode: "POL", name: "Gdansk", lon: 18.65, lat: 54.35, isCapital: false, recruitCapacity: 1, income: 350, growth: 23, dx: -35, dy: -17 },
+  { code: "POL-WRO", countryCode: "POL", name: "Wroclaw", lon: 17.04, lat: 51.11, isCapital: false, recruitCapacity: 1, income: 380, growth: 26, dx: -38, dy: 12 },
+
+  // ABD
+  { code: "USA-WAS", countryCode: "USA", name: "Washington", lon: -77.04, lat: 38.90, isCapital: true, recruitCapacity: 3, income: 1030, growth: 81, dx: 8, dy: 12 },
+  { code: "USA-NYC", countryCode: "USA", name: "New York", lon: -74.01, lat: 40.71, isCapital: false, recruitCapacity: 2, income: 940, growth: 72, dx: 8, dy: -18 },
+  { code: "USA-CHI", countryCode: "USA", name: "Chicago", lon: -87.63, lat: 41.88, isCapital: false, recruitCapacity: 2, income: 760, growth: 55, dx: 8, dy: 12 },
+  { code: "USA-DAL", countryCode: "USA", name: "Dallas", lon: -96.80, lat: 32.78, isCapital: false, recruitCapacity: 2, income: 690, growth: 49, dx: 8, dy: 12 },
+  { code: "USA-LAX", countryCode: "USA", name: "Los Angeles", lon: -118.24, lat: 34.05, isCapital: false, recruitCapacity: 2, income: 850, growth: 63, dx: -42, dy: 12 },
+  { code: "USA-SEA", countryCode: "USA", name: "Seattle", lon: -122.33, lat: 47.61, isCapital: false, recruitCapacity: 1, income: 520, growth: 36, dx: -35, dy: -17 },
+  { code: "USA-MIA", countryCode: "USA", name: "Miami", lon: -80.19, lat: 25.76, isCapital: false, recruitCapacity: 1, income: 500, growth: 34, dx: 8, dy: 12 },
+  { code: "USA-DEN", countryCode: "USA", name: "Denver", lon: -104.99, lat: 39.74, isCapital: false, recruitCapacity: 1, income: 470, growth: 32, dx: 8, dy: 12 },
+
+  // Rusya
+  { code: "RUS-MOW", countryCode: "RUS", name: "Moskova", lon: 37.62, lat: 55.75, isCapital: true, recruitCapacity: 3, income: 1120, growth: 88, dx: 8, dy: -18 },
+  { code: "RUS-LED", countryCode: "RUS", name: "St. Petersburg", lon: 30.34, lat: 59.93, isCapital: false, recruitCapacity: 2, income: 710, growth: 49, dx: -42, dy: -17 },
+  { code: "RUS-ROV", countryCode: "RUS", name: "Rostov", lon: 39.70, lat: 47.24, isCapital: false, recruitCapacity: 2, income: 510, growth: 34, dx: 8, dy: 12 },
+  { code: "RUS-SVX", countryCode: "RUS", name: "Yekaterinburg", lon: 60.60, lat: 56.84, isCapital: false, recruitCapacity: 2, income: 560, growth: 38, dx: 8, dy: 12 },
+  { code: "RUS-OVB", countryCode: "RUS", name: "Novosibirsk", lon: 82.92, lat: 55.03, isCapital: false, recruitCapacity: 2, income: 520, growth: 35, dx: 8, dy: 12 },
+  { code: "RUS-IKT", countryCode: "RUS", name: "Irkutsk", lon: 104.28, lat: 52.29, isCapital: false, recruitCapacity: 1, income: 350, growth: 22, dx: 8, dy: 12 },
+  { code: "RUS-VVO", countryCode: "RUS", name: "Vladivostok", lon: 131.89, lat: 43.12, isCapital: false, recruitCapacity: 2, income: 480, growth: 31, dx: 8, dy: 12 },
+  { code: "RUS-KZN", countryCode: "RUS", name: "Kazan", lon: 49.12, lat: 55.79, isCapital: false, recruitCapacity: 1, income: 410, growth: 27, dx: 8, dy: -17 },
+
+  // Çin
+  { code: "CHN-BJS", countryCode: "CHN", name: "Pekin", lon: 116.40, lat: 39.90, isCapital: true, recruitCapacity: 3, income: 1050, growth: 82, dx: 8, dy: -18 },
+  { code: "CHN-SHA", countryCode: "CHN", name: "Şanghay", lon: 121.47, lat: 31.23, isCapital: false, recruitCapacity: 2, income: 920, growth: 70, dx: 8, dy: 12 },
+  { code: "CHN-CAN", countryCode: "CHN", name: "Guangzhou", lon: 113.26, lat: 23.13, isCapital: false, recruitCapacity: 2, income: 760, growth: 56, dx: 8, dy: 12 },
+  { code: "CHN-CTU", countryCode: "CHN", name: "Chengdu", lon: 104.07, lat: 30.57, isCapital: false, recruitCapacity: 2, income: 620, growth: 44, dx: -38, dy: 12 },
+  { code: "CHN-WUH", countryCode: "CHN", name: "Wuhan", lon: 114.31, lat: 30.59, isCapital: false, recruitCapacity: 1, income: 540, growth: 38, dx: 8, dy: -18 },
+  { code: "CHN-XIY", countryCode: "CHN", name: "Xi'an", lon: 108.94, lat: 34.34, isCapital: false, recruitCapacity: 1, income: 480, growth: 32, dx: -33, dy: -17 },
+  { code: "CHN-SHE", countryCode: "CHN", name: "Shenyang", lon: 123.43, lat: 41.80, isCapital: false, recruitCapacity: 1, income: 460, growth: 30, dx: 8, dy: 12 },
+
+  // Japonya
+  { code: "JPN-TYO", countryCode: "JPN", name: "Tokyo", lon: 139.69, lat: 35.68, isCapital: true, recruitCapacity: 3, income: 980, growth: 77, dx: 8, dy: -18 },
+  { code: "JPN-OSA", countryCode: "JPN", name: "Osaka", lon: 135.50, lat: 34.69, isCapital: false, recruitCapacity: 2, income: 680, growth: 49, dx: -34, dy: 12 },
+  { code: "JPN-SPK", countryCode: "JPN", name: "Sapporo", lon: 141.35, lat: 43.06, isCapital: false, recruitCapacity: 1, income: 410, growth: 27, dx: 8, dy: -18 },
+  { code: "JPN-FUK", countryCode: "JPN", name: "Fukuoka", lon: 130.40, lat: 33.59, isCapital: false, recruitCapacity: 1, income: 390, growth: 25, dx: -38, dy: 12 },
+
+  // Hindistan
+  { code: "IND-DEL", countryCode: "IND", name: "Delhi", lon: 77.10, lat: 28.70, isCapital: true, recruitCapacity: 3, income: 900, growth: 72, dx: 8, dy: -18 },
+  { code: "IND-BOM", countryCode: "IND", name: "Mumbai", lon: 72.88, lat: 19.08, isCapital: false, recruitCapacity: 2, income: 760, growth: 57, dx: -36, dy: 12 },
+  { code: "IND-CCU", countryCode: "IND", name: "Kolkata", lon: 88.36, lat: 22.57, isCapital: false, recruitCapacity: 2, income: 640, growth: 47, dx: 8, dy: 12 },
+  { code: "IND-MAA", countryCode: "IND", name: "Chennai", lon: 80.27, lat: 13.08, isCapital: false, recruitCapacity: 2, income: 600, growth: 43, dx: 8, dy: 12 },
+  { code: "IND-HYD", countryCode: "IND", name: "Hyderabad", lon: 78.49, lat: 17.39, isCapital: false, recruitCapacity: 1, income: 520, growth: 36, dx: -38, dy: 12 },
+  { code: "IND-BLR", countryCode: "IND", name: "Bangalore", lon: 77.59, lat: 12.97, isCapital: false, recruitCapacity: 1, income: 570, growth: 40, dx: -42, dy: -18 },
+
+  // Brezilya
+  { code: "BRA-BSB", countryCode: "BRA", name: "Brasilia", lon: -47.88, lat: -15.79, isCapital: true, recruitCapacity: 3, income: 780, growth: 58, dx: 8, dy: -18 },
+  { code: "BRA-SAO", countryCode: "BRA", name: "Sao Paulo", lon: -46.63, lat: -23.55, isCapital: false, recruitCapacity: 2, income: 900, growth: 68, dx: 8, dy: 12 },
+  { code: "BRA-RIO", countryCode: "BRA", name: "Rio", lon: -43.17, lat: -22.91, isCapital: false, recruitCapacity: 2, income: 690, growth: 49, dx: 8, dy: -18 },
+  { code: "BRA-REC", countryCode: "BRA", name: "Recife", lon: -34.88, lat: -8.05, isCapital: false, recruitCapacity: 1, income: 410, growth: 28, dx: 8, dy: 12 },
+  { code: "BRA-MAO", countryCode: "BRA", name: "Manaus", lon: -60.02, lat: -3.12, isCapital: false, recruitCapacity: 1, income: 360, growth: 23, dx: -38, dy: 12 },
+  { code: "BRA-POA", countryCode: "BRA", name: "Porto Alegre", lon: -51.23, lat: -30.03, isCapital: false, recruitCapacity: 1, income: 430, growth: 29, dx: -40, dy: 12 },
+
+  // Avustralya
+  { code: "AUS-CBR", countryCode: "AUS", name: "Canberra", lon: 149.13, lat: -35.28, isCapital: true, recruitCapacity: 3, income: 680, growth: 49, dx: 8, dy: -18 },
+  { code: "AUS-SYD", countryCode: "AUS", name: "Sydney", lon: 151.21, lat: -33.87, isCapital: false, recruitCapacity: 2, income: 820, growth: 61, dx: 8, dy: 12 },
+  { code: "AUS-MEL", countryCode: "AUS", name: "Melbourne", lon: 144.96, lat: -37.81, isCapital: false, recruitCapacity: 2, income: 760, growth: 56, dx: -38, dy: 12 },
+  { code: "AUS-PER", countryCode: "AUS", name: "Perth", lon: 115.86, lat: -31.95, isCapital: false, recruitCapacity: 1, income: 500, growth: 34, dx: -35, dy: 12 },
+  { code: "AUS-BNE", countryCode: "AUS", name: "Brisbane", lon: 153.03, lat: -27.47, isCapital: false, recruitCapacity: 1, income: 540, growth: 37, dx: 8, dy: 12 },
 ];
 
 const cityPrimaryUnits: Record<string, string> = {
-  TUR: "heavy_tank",
-  DEU: "infantry",
-  RUS: "heavy_tank",
-  FRA: "infantry",
-  USA: "fighter",
-  CHN: "light_tank",
-  JPN: "fighter",
+  "TUR-ANK": "heavy_tank",
+  "DEU-BER": "infantry",
+  "USA-WAS": "fighter",
+  "RUS-MOW": "heavy_tank",
+  "CHN-BJS": "light_tank",
+  "FRA-PAR": "infantry",
+  "JPN-TYO": "fighter",
 };
 
 const WORLD_WIDTH = 1000;
@@ -261,6 +375,7 @@ export default function App() {
   const [world, setWorld] = useState<GeoFeature[]>([]);
   const [mapError, setMapError] = useState("");
   const [selectedId, setSelectedId] = useState("TUR");
+  const [selectedCityId, setSelectedCityId] = useState("TUR-ANK");
   const [countryState, setCountryState] =
     useState<Record<string, CountryState>>(INITIAL_COUNTRIES);
 
@@ -298,13 +413,19 @@ export default function App() {
     UNIT_DEFINITIONS.find((unit) => unit.id === selectedUnitId) ??
     UNIT_DEFINITIONS[0];
 
-  const selectedCity = cityNodes.find((city) => city.code === selectedId);
+  const selectedCity = cityNodes.find((city) => city.code === selectedCityId);
   const currentPlayer = commander.trim() || "Atlas";
   const ownsSelectedCountry = selectedState.owner === currentPlayer;
   const productionTurns = getProductionTurns(selectedUnit);
   const productionCost = getProductionCost(selectedUnit, productionQty);
-  const selectedGarrison = garrisons[selectedId] ?? {};
+  const selectedGarrison = garrisons[selectedCity?.code ?? ""] ?? {};
   const selectedUnitCount = selectedGarrison[selectedUnit.id] ?? 0;
+  const selectedCountryRecruitCapacity = cityNodes
+    .filter((city) => city.countryCode === selectedId)
+    .reduce((sum, city) => sum + city.recruitCapacity, 0);
+  const selectedCityActiveOrders = selectedCity
+    ? productionQueue.filter((order) => order.countryId === selectedCity.code).length
+    : 0;
 
   const mapViewWidth = WORLD_WIDTH / mapZoom;
   const mapViewHeight = WORLD_HEIGHT / mapZoom;
@@ -401,7 +522,21 @@ export default function App() {
       return;
     }
 
-    const readyTurn = turn + productionTurns;
+    if (selectedCityActiveOrders >= selectedCity.recruitCapacity) {
+      setNotice(
+        selectedCity.name +
+          " asker basma kapasitesi dolu (" +
+          selectedCityActiveOrders +
+          "/" +
+          selectedCity.recruitCapacity +
+          ")."
+      );
+      return;
+    }
+
+    const capacitySpeedBonus = Math.floor((selectedCity.recruitCapacity - 1) / 2);
+    const effectiveProductionTurns = Math.max(1, productionTurns - capacitySpeedBonus);
+    const readyTurn = turn + effectiveProductionTurns;
 
     setResources((current) => ({
       gold: current.gold - productionCost.gold,
@@ -413,7 +548,7 @@ export default function App() {
       ...current,
       {
         id: orderSequence,
-        countryId: selectedId,
+        countryId: selectedCity.code,
         cityName: selectedCity.name,
         unitId: selectedUnit.id,
         unitName: selectedUnit.name,
@@ -457,7 +592,8 @@ export default function App() {
 
   function handleCityClick(city: (typeof cityNodes)[number]) {
     if (!moveSourceCode) {
-      setSelectedId(city.code);
+      setSelectedId(city.countryCode);
+      setSelectedCityId(city.code);
       return;
     }
 
@@ -469,12 +605,13 @@ export default function App() {
 
     if (source.code === city.code) {
       setMoveSourceCode(null);
-      setSelectedId(city.code);
+      setSelectedId(city.countryCode);
+    setSelectedCityId(city.code);
       setNotice("Hareket emri iptal edildi.");
       return;
     }
 
-    const targetState = countryState[city.code];
+    const targetState = countryState[city.countryCode];
     const orderKind: "move" | "attack" =
       targetState?.owner === currentPlayer ? "move" : "attack";
 
@@ -609,8 +746,11 @@ export default function App() {
       setCountryState((current) => {
         const next = { ...current };
         capturedCodes.forEach((code) => {
-          next[code] = {
-            ...(next[code] ?? { troops: 5, resource: "Gıda" }),
+          const capturedCity = cityNodes.find((city) => city.code === code);
+          if (!capturedCity) return;
+          const countryCode = capturedCity.countryCode;
+          next[countryCode] = {
+            ...(next[countryCode] ?? { troops: 5, resource: "Gıda" }),
             owner: currentPlayer,
           };
         });
@@ -623,7 +763,7 @@ export default function App() {
       .join(" · ");
 
     const incomeGold = cityNodes.reduce((sum, city) => {
-      return countryState[city.code]?.owner === currentPlayer ? sum + 80 : sum;
+      return countryState[city.countryCode]?.owner === currentPlayer ? sum + Math.round(city.income * 0.1) : sum;
     }, 0);
 
     setResources((current) => ({
@@ -934,10 +1074,59 @@ export default function App() {
                           key={city.name}
                           onClick={() => handleCityClick(city)}
                         >
-                          <circle cx={x} cy={y} r="3.7" />
-                          <text x={x + 6} y={y - 5}>
-                            {city.name}
-                          </text>
+                          {city.isCapital ? (
+                            <text
+                              x={x}
+                              y={y + 4}
+                              className="capital-city-star"
+                              textAnchor="middle"
+                            >
+                              ★
+                            </text>
+                          ) : (
+                            <>
+                              <circle
+                                cx={x}
+                                cy={y}
+                                r="6"
+                                className="recruit-city-node"
+                              />
+                              <text
+                                x={x}
+                                y={y + 2.5}
+                                className="recruit-capacity-number"
+                                textAnchor="middle"
+                              >
+                                {city.recruitCapacity}
+                              </text>
+                            </>
+                          )}
+
+                          {mapZoom >= 1.25 && (
+                            <g className="city-economic-label">
+                              <text x={x + 7} y={y - 6}>
+                                {city.name}
+                              </text>
+                              {mapZoom >= 1.65 && (
+                                <>
+                                  <text
+                                    x={x + 7}
+                                    y={y + 4}
+                                    className="city-income"
+                                  >
+                                    {city.income}
+                                  </text>
+                                  <text
+                                    x={x + 7}
+                                    y={y + 13}
+                                    className="city-growth"
+                                  >
+                                    (+{city.growth})
+                                  </text>
+                                </>
+                              )}
+                            </g>
+                          )}
 
                           {icon && (
                             <g className="map-unit-marker">
@@ -1006,7 +1195,9 @@ export default function App() {
                 {selectedState.owner ?? "Tarafsız"} • {selectedState.troops} birlik
               </small>
               {selectedCity && (
-                <small className="city-center">Üretim merkezi: {selectedCity.name}</small>
+                <small className="city-center">
+                  Üretim merkezi: {selectedCity.name} · Kapasite {selectedCity.recruitCapacity}
+                </small>
               )}
             </div>
           </div>
@@ -1091,6 +1282,19 @@ export default function App() {
               <b>{selectedUnitCount.toLocaleString("tr-TR")}</b>
             </div>
 
+            {selectedCity && (
+              <div className="recruit-capacity-box">
+                <div>
+                  <span>Şehir asker basma kapasitesi</span>
+                  <b>{selectedCityActiveOrders}/{selectedCity.recruitCapacity}</b>
+                </div>
+                <div>
+                  <span>Ülke toplam kapasitesi</span>
+                  <b>{selectedCountryRecruitCapacity}</b>
+                </div>
+              </div>
+            )}
+
             <div className="qty-row">
               {[1, 5, 10].map((qty) => (
                 <button
@@ -1107,7 +1311,18 @@ export default function App() {
               <div><span>Altın</span><b>{productionCost.gold}</b></div>
               <div><span>Çelik</span><b>{productionCost.steel}</b></div>
               <div><span>Petrol</span><b>{productionCost.oil}</b></div>
-              <div><span>Süre</span><b>{productionTurns} tur</b></div>
+              <div>
+                <span>Süre</span>
+                <b>
+                  {selectedCity
+                    ? Math.max(
+                        1,
+                        productionTurns -
+                          Math.floor((selectedCity.recruitCapacity - 1) / 2)
+                      )
+                    : productionTurns} tur
+                </b>
+              </div>
             </div>
 
             <button
