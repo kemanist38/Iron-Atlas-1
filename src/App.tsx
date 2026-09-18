@@ -1522,6 +1522,7 @@ export default function App() {
       units: Record<string, number>;
       sourceX: number;
       sourceY: number;
+      fromCode: string | null;
     };
 
     const cityGroups = new Map<string, CityAttackGroup>();
@@ -1530,13 +1531,24 @@ export default function App() {
       .filter((order) => Boolean(order.targetCityCode))
       .forEach((order) => {
         const targetCode = order.targetCityCode!;
-        const key = targetCode + "::" + order.player;
+        const originKey =
+          order.fromCode ??
+          `army-${order.fromArmyId ?? "field"}-${order.sourceX.toFixed(
+            1
+          )}-${order.sourceY.toFixed(1)}`;
+        const key =
+          targetCode +
+          "::" +
+          order.player +
+          "::" +
+          originKey;
         const current = cityGroups.get(key) ?? {
           player: order.player,
           targetCityCode: targetCode,
           units: {},
           sourceX: order.sourceX,
           sourceY: order.sourceY,
+          fromCode: order.fromCode,
         };
         current.units[order.unitId] =
           (current.units[order.unitId] ?? 0) +
@@ -1590,6 +1602,101 @@ export default function App() {
         (sum, quantity) => sum + quantity,
         0
       );
+      const hasOccupyingLand = Object.entries(
+        group.units
+      ).some(
+        ([unitId, quantity]) =>
+          quantity > 0 &&
+          UNIT_BY_ID[unitId]?.domain === "land"
+      );
+
+      if (!hasOccupyingLand) {
+        const defenderLossRatio =
+          defensePower <= 0
+            ? 0
+            : Math.min(
+                0.58,
+                attackPower /
+                  Math.max(1, defensePower * 1.5)
+              );
+        const reducedDefenders = scaleArmy(
+          defenders,
+          1 - defenderLossRatio
+        );
+        nextGarrisons[targetCity.code] = reducedDefenders;
+
+        const attackerSurvivorRatio =
+          defensePower <= 0
+            ? 1
+            : Math.max(
+                0.35,
+                1 -
+                  Math.min(
+                    0.65,
+                    defensePower /
+                      Math.max(1, attackPower * 2.3)
+                  )
+              );
+        const returning = scaleArmy(
+          group.units,
+          attackerSurvivorRatio
+        );
+        const returningCount = Object.values(returning).reduce(
+          (sum, quantity) => sum + quantity,
+          0
+        );
+        const defenderLeft = Object.values(
+          reducedDefenders
+        ).reduce(
+          (sum, quantity) => sum + quantity,
+          0
+        );
+
+        if (returningCount > 0) {
+          if (
+            group.fromCode &&
+            nextCityOwners[group.fromCode] === group.player
+          ) {
+            nextGarrisons[group.fromCode] = mergeArmy(
+              nextGarrisons[group.fromCode] ?? {},
+              returning
+            );
+          } else {
+            const existingReturn = nextFieldArmies.find(
+              (army) =>
+                army.player === group.player &&
+                Math.abs(army.x - group.sourceX) < 1 &&
+                Math.abs(army.y - group.sourceY) < 1
+            );
+            if (existingReturn) {
+              existingReturn.units = mergeArmy(
+                existingReturn.units,
+                returning
+              );
+            } else {
+              nextFieldArmies.push({
+                id: orderIdRef.current++,
+                player: group.player,
+                x: group.sourceX,
+                y: group.sourceY,
+                units: returning,
+              });
+            }
+          }
+        }
+
+        const raidType = Object.keys(group.units).some(
+          (unitId) =>
+            UNIT_BY_ID[unitId]?.domain === "air"
+        )
+          ? "Hava saldırısı"
+          : "Bombardıman";
+
+        combatLog.push(
+          `${targetCity.name}: ${raidType} tamamlandı · saldıran ${attackerCount} → ${returningCount}, savunan ${defenderCount} → ${defenderLeft}. Şehir işgal edilmedi.`
+        );
+        return;
+      }
 
       if (
         defensePower <= 0 ||
