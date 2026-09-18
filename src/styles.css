@@ -616,3 +616,45 @@ input:focus {
   color: #9cb3c8;
   font-size: 9px;
 }
+
+
+/* v0.4 atWar-style base stat template */
+.atwar-grid {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.bonus-box {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 9px;
+  border: 1px solid #1b3349;
+  border-radius: 5px;
+  background: #07101a;
+}
+
+.bonus-box > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #88a3bb;
+  font-size: 10px;
+}
+
+.bonus-box > div b {
+  color: #6bd69e;
+}
+
+.estimated-note {
+  display: block;
+  margin-top: 10px;
+  color: #b69a62;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1100px) {
+  .atwar-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
