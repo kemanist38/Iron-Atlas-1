@@ -444,6 +444,13 @@ export default function App() {
   const [commander, setCommander] = useState("Atlas");
   const [roomName, setRoomName] = useState("Global War");
   const [selectedHomeland, setSelectedHomeland] = useState("TUR");
+  const [cityPanelOpen, setCityPanelOpen] = useState(false);
+  const [cityPanelTab, setCityPanelTab] =
+    useState<"production" | "movement">("production");
+  const [moveDraft, setMoveDraft] =
+    useState<Record<string, number>>({});
+  const [moveManifest, setMoveManifest] =
+    useState<Record<string, number>>({});
   const [turn, setTurn] = useState(1);
   const [notice, setNotice] = useState("Komuta ağı çevrimiçi.");
   const [selectedUnitId, setSelectedUnitId] = useState("infantry");
@@ -736,9 +743,9 @@ export default function App() {
     changeMapZoom(mapZoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15));
   }
 
-  function queueProduction() {
+  function queueProductionUnit(unitId: string, quantity = 1) {
     if (!selectedCity) {
-      setNotice("Bu ülkede henüz üretim merkezi tanımlı değil.");
+      setNotice("Üretim için bir şehir seç.");
       return;
     }
 
@@ -747,20 +754,29 @@ export default function App() {
       return;
     }
 
+    const unit = unitDefinition(unitId);
+    if (!unit) return;
+
+    const cost = getProductionCost(unit, quantity);
+
     if (
-      resources.gold < productionCost.gold ||
-      resources.steel < productionCost.steel ||
-      resources.oil < productionCost.oil
+      resources.gold < cost.gold ||
+      resources.steel < cost.steel ||
+      resources.oil < cost.oil
     ) {
       setNotice("Bu üretim için yeterli kaynağın yok.");
       return;
     }
 
-    if (selectedCityActiveOrders >= selectedCity.recruitCapacity) {
+    const activeOrders = productionQueue.filter(
+      (order) => order.countryId === selectedCity.code
+    ).length;
+
+    if (activeOrders >= selectedCity.recruitCapacity) {
       setNotice(
         selectedCity.name +
           " asker basma kapasitesi dolu (" +
-          selectedCityActiveOrders +
+          activeOrders +
           "/" +
           selectedCity.recruitCapacity +
           ")."
@@ -768,14 +784,19 @@ export default function App() {
       return;
     }
 
-    const capacitySpeedBonus = Math.floor((selectedCity.recruitCapacity - 1) / 2);
-    const effectiveProductionTurns = Math.max(1, productionTurns - capacitySpeedBonus);
-    const readyTurn = turn + effectiveProductionTurns;
+    const capacitySpeedBonus = Math.floor(
+      (selectedCity.recruitCapacity - 1) / 2
+    );
+    const effectiveTurns = Math.max(
+      1,
+      getProductionTurns(unit) - capacitySpeedBonus
+    );
+    const readyTurn = turn + effectiveTurns;
 
     setResources((current) => ({
-      gold: current.gold - productionCost.gold,
-      steel: current.steel - productionCost.steel,
-      oil: current.oil - productionCost.oil,
+      gold: current.gold - cost.gold,
+      steel: current.steel - cost.steel,
+      oil: current.oil - cost.oil,
     }));
 
     setProductionQueue((current) => [
@@ -785,17 +806,99 @@ export default function App() {
         player: currentPlayer,
         countryId: selectedCity.code,
         cityName: selectedCity.name,
-        unitId: selectedUnit.id,
-        unitName: selectedUnit.name,
-        quantity: productionQty,
+        unitId: unit.id,
+        unitName: unit.name,
+        quantity,
         readyTurn,
       },
     ]);
 
     setOrderSequence((current) => current + 1);
+    setSelectedUnitId(unit.id);
     setNotice(
-      `${selectedCity.name}: ${productionQty} × ${selectedUnit.name} üretime alındı. Tamamlanma: Tur ${readyTurn}.`
+      selectedCity.name +
+        ": " +
+        quantity +
+        " × " +
+        unit.name +
+        " üretime alındı."
     );
+  }
+
+  function cancelLatestProductionUnit(unitId: string) {
+    if (!selectedCity) return;
+
+    let removeIndex = -1;
+    for (let index = productionQueue.length - 1; index >= 0; index -= 1) {
+      const order = productionQueue[index];
+      if (
+        order.countryId === selectedCity.code &&
+        order.unitId === unitId &&
+        order.player === currentPlayer
+      ) {
+        removeIndex = index;
+        break;
+      }
+    }
+
+    if (removeIndex < 0) return;
+
+    const order = productionQueue[removeIndex];
+    const unit = unitDefinition(order.unitId);
+    if (!unit) return;
+
+    const refund = getProductionCost(unit, order.quantity);
+
+    setProductionQueue((current) =>
+      current.filter((_, index) => index !== removeIndex)
+    );
+    setResources((current) => ({
+      gold: current.gold + refund.gold,
+      steel: current.steel + refund.steel,
+      oil: current.oil + refund.oil,
+    }));
+    setNotice(order.unitName + " üretim emri iptal edildi.");
+  }
+
+  function adjustMoveDraft(unitId: string, delta: number) {
+    if (!selectedCity) return;
+
+    const available = selectedGarrison[unitId] ?? 0;
+    setMoveDraft((current) => {
+      const nextValue = Math.max(
+        0,
+        Math.min(available, (current[unitId] ?? 0) + delta)
+      );
+      return { ...current, [unitId]: nextValue };
+    });
+  }
+
+  function startCityTransfer() {
+    if (!selectedCity || !ownsSelectedCity) {
+      setNotice("Birlik taşıma için kendi şehrini seç.");
+      return;
+    }
+
+    const manifest = Object.fromEntries(
+      Object.entries(moveDraft).filter(([, quantity]) => quantity > 0)
+    );
+
+    if (Object.keys(manifest).length === 0) {
+      setNotice("Taşınacak birlik miktarını seç.");
+      return;
+    }
+
+    setMoveManifest(manifest);
+    setMoveSourceCode(selectedCity.code);
+    setCityPanelOpen(false);
+    setNotice(
+      selectedCity.name +
+        ": birlikler seçildi. Şimdi haritada hedef şehre tıkla."
+    );
+  }
+
+  function queueProduction() {
+    queueProductionUnit(selectedUnit.id, productionQty);
   }
 
   function startMovementOrder() {
@@ -829,19 +932,30 @@ export default function App() {
     if (!moveSourceCode) {
       setSelectedId(city.countryCode);
       setSelectedCityId(city.code);
+      setSelectedUnitId("infantry");
+      setMoveDraft({});
+      setCityPanelTab("production");
+      setCityPanelOpen(true);
       return;
     }
 
-    const source = cityNodes.find((item) => item.code === moveSourceCode);
+    const source = cityNodes.find(
+      (item) => item.code === moveSourceCode
+    );
+
     if (!source) {
       setMoveSourceCode(null);
+      setMoveManifest({});
       return;
     }
 
     if (source.code === city.code) {
       setMoveSourceCode(null);
+      setMoveManifest({});
+      setMoveDraft({});
       setSelectedId(city.countryCode);
       setSelectedCityId(city.code);
+      setCityPanelOpen(true);
       setNotice("Hareket emri iptal edildi.");
       return;
     }
@@ -849,54 +963,103 @@ export default function App() {
     const targetCityOwner = cityOwners[city.code] ?? null;
     const orderKind: "move" | "attack" =
       targetCityOwner === currentPlayer ? "move" : "attack";
-
     const km = distanceKm(source, city);
-    const maxKm = movementRangeKm(selectedUnit);
 
-    if (km > maxKm) {
-      setNotice(
-        `${selectedUnit.name} menzili yetersiz: ${km.toLocaleString("tr-TR")} km / maksimum ${maxKm.toLocaleString("tr-TR")} km.`
+    const manifestEntries =
+      Object.keys(moveManifest).length > 0
+        ? Object.entries(moveManifest)
+        : [[selectedUnit.id, movementQty] as [string, number]];
+
+    const newOrders: MovementOrder[] = [];
+    const skipped: string[] = [];
+
+    manifestEntries.forEach(([unitId, quantity], index) => {
+      const unit = unitDefinition(unitId);
+      if (!unit || quantity <= 0) return;
+
+      if (unit.domain === "naval") {
+        skipped.push(unit.name + " (liman gerekli)");
+        return;
+      }
+
+      const maxKm = movementRangeKm(unit);
+      if (km > maxKm) {
+        skipped.push(unit.name + " (menzil)");
+        return;
+      }
+
+      const sourceCount =
+        garrisons[source.code]?.[unit.id] ?? 0;
+      const alreadyQueued = movementQueue
+        .filter(
+          (order) =>
+            order.fromCode === source.code &&
+            order.unitId === unit.id
+        )
+        .reduce(
+          (sum, order) => sum + order.quantity,
+          0
+        );
+
+      const allowed = Math.min(
+        quantity,
+        Math.max(0, sourceCount - alreadyQueued)
       );
-      return;
-    }
 
-    const sourceCount = garrisons[source.code]?.[selectedUnit.id] ?? 0;
-    const alreadyQueued = movementQueue
-      .filter(
-        (order) =>
-          order.fromCode === source.code && order.unitId === selectedUnit.id
-      )
-      .reduce((sum, order) => sum + order.quantity, 0);
+      if (allowed <= 0) return;
 
-    if (sourceCount - alreadyQueued < movementQty) {
-      setNotice("Aynı birliklerden daha fazlasını hareket kuyruğuna ekleyemezsin.");
-      return;
-    }
-
-    setMovementQueue((current) => [
-      ...current,
-      {
-        id: orderSequence,
+      newOrders.push({
+        id: orderSequence + index,
         kind: orderKind,
         fromCode: source.code,
         fromCity: source.name,
         toCode: city.code,
         toCity: city.name,
-        unitId: selectedUnit.id,
-        unitName: selectedUnit.name,
-        quantity: movementQty,
+        unitId: unit.id,
+        unitName: unit.name,
+        quantity: allowed,
         distanceKm: km,
-      },
-    ]);
+      });
+    });
 
-    setOrderSequence((current) => current + 1);
+    if (newOrders.length === 0) {
+      setNotice(
+        skipped.length
+          ? "Bu hedefe taşınamayan birimler: " +
+              skipped.join(", ")
+          : "Taşınabilir birlik bulunamadı."
+      );
+      return;
+    }
+
+    setMovementQueue((current) => [
+      ...current,
+      ...newOrders,
+    ]);
+    setOrderSequence(
+      (current) => current + newOrders.length
+    );
     setMoveSourceCode(null);
+    setMoveManifest({});
+    setMoveDraft({});
     setSelectedId(city.countryCode);
     setSelectedCityId(city.code);
+    setCityPanelOpen(false);
+
     setNotice(
-      orderKind === "attack"
-        ? source.name + " → " + city.name + ": " + movementQty + " × " + selectedUnit.name + " SALDIRI emri kuyruğa eklendi."
-        : source.name + " → " + city.name + ": " + movementQty + " × " + selectedUnit.name + " hareket emri kuyruğa eklendi."
+      source.name +
+        " → " +
+        city.name +
+        ": " +
+        newOrders.length +
+        " birlik grubu " +
+        (orderKind === "attack"
+          ? "SALDIRI"
+          : "HAREKET") +
+        " emrine eklendi." +
+        (skipped.length
+          ? " Atlanan: " + skipped.join(", ")
+          : "")
     );
   }
 
@@ -1180,9 +1343,9 @@ export default function App() {
   if (screen === "homeland") {
     const homeland = HOMELAND_OPTIONS.find(
       (item) => item.code === selectedHomeland
-    ) ?? HOMELAND_OPTIONS[0];
+    );
     const homelandCities = cityNodes.filter(
-      (city) => city.countryCode === homeland.code
+      (city) => city.countryCode === selectedHomeland
     );
     const homelandCapital = homelandCities.find(
       (city) => city.isCapital
@@ -1191,141 +1354,184 @@ export default function App() {
       (sum, city) => sum + city.recruitCapacity,
       0
     );
-    const homelandIncome = homelandCities.reduce(
-      (sum, city) => sum + city.income,
-      0
-    );
+    const canPurchase = Boolean(homeland);
 
     return (
-      <div className="app homeland-screen">
-        <header className="brandbar">
-          <div>
-            <span className="eyebrow">GLOBAL COMMAND NETWORK</span>
-            <h1>IRON ATLAS</h1>
+      <div className="app homeland-map-screen">
+        <header className="homeland-map-bar">
+          <div className="homeland-map-brand">
+            <strong>IRON ATLAS</strong>
+            <span>Yeni Oyun · Anavatan Seçimi</span>
+          </div>
+          <div className="homeland-map-instruction">
+            Dünya haritasından bir ülkeye tıkla
           </div>
           <button
-            className="ghost homeland-back"
+            className="ghost homeland-map-back"
             onClick={() => setScreen("lobby")}
           >
             ← LOBİ
           </button>
         </header>
 
-        <main className="homeland-shell">
-          <section className="homeland-title">
-            <span className="eyebrow">NEW CAMPAIGN</span>
-            <h2>Anavatanını Seç</h2>
-            <p>
-              Başlangıç şehirlerin, başkentin, asker basma kapasiten ve
-              ilk ordun seçtiğin ülkeye göre kurulacak.
-            </p>
-          </section>
-
-          <section className="homeland-layout">
-            <div className="homeland-grid">
-              {HOMELAND_OPTIONS.map((country) => {
-                const cities = cityNodes.filter(
-                  (city) => city.countryCode === country.code
-                );
-                const capacity = cities.reduce(
-                  (sum, city) => sum + city.recruitCapacity,
-                  0
-                );
-                const capital = cities.find((city) => city.isCapital);
-
-                return (
-                  <button
-                    key={country.code}
-                    className={
-                      "homeland-card " +
-                      (selectedHomeland === country.code
-                        ? "selected"
-                        : "")
-                    }
-                    onClick={() => setSelectedHomeland(country.code)}
-                  >
-                    <div className="homeland-card-top">
-                      <span className="country-code">{country.code}</span>
-                      <span className="country-region">{country.region}</span>
-                    </div>
-                    <strong>{country.name}</strong>
-                    <small>★ {capital?.name ?? "Başkent"}</small>
-                    <div className="homeland-mini-stats">
-                      <span>{cities.length} şehir</span>
-                      <span>{capacity} kapasite</span>
-                    </div>
-                  </button>
-                );
-              })}
+        <main className="homeland-map-wrap">
+          {mapError ? (
+            <div className="map-error">{mapError}</div>
+          ) : world.length === 0 ? (
+            <div className="map-loading">
+              Dünya haritası yükleniyor...
             </div>
+          ) : (
+            <svg
+              viewBox={mapViewBox}
+              className="world-map homeland-world-map"
+              onPointerDown={handleMapPointerDown}
+              onPointerMove={handleMapPointerMove}
+              onPointerUp={handleMapPointerUp}
+              onPointerCancel={handleMapPointerUp}
+              onWheel={handleMapWheel}
+            >
+              <rect
+                x={-WORLD_WIDTH}
+                y="0"
+                width={WORLD_WIDTH * 3}
+                height={WORLD_HEIGHT}
+                className="homeland-ocean"
+              />
 
-            <aside className="homeland-detail card">
-              <span className="eyebrow">SELECTED HOMELAND</span>
-              <h3>{homeland.name}</h3>
-              <p>{homeland.description}</p>
+              {WORLD_COPIES.map((worldOffset) => (
+                <g
+                  key={worldOffset}
+                  transform={`translate(${worldOffset} 0)`}
+                >
+                  <image
+                    href={TERRAIN_MAP_URL}
+                    x="0"
+                    y="0"
+                    width={WORLD_WIDTH}
+                    height={WORLD_HEIGHT}
+                    preserveAspectRatio="none"
+                    className="terrain-base homeland-terrain"
+                  />
 
-              <div className="homeland-detail-grid">
-                <div>
+                  {world.map((feature, index) => {
+                    const id = String(
+                      feature.id ?? `country-${index}`
+                    );
+                    const supported = HOMELAND_OPTIONS.some(
+                      (item) => item.code === id
+                    );
+                    const selected =
+                      selectedHomeland === id;
+
+                    return (
+                      <path
+                        key={id}
+                        d={geometryToPath(feature.geometry)}
+                        className={
+                          "homeland-country " +
+                          (supported
+                            ? "supported "
+                            : "unsupported ") +
+                          (selected ? "selected" : "")
+                        }
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedHomeland(id);
+                        }}
+                      >
+                        <title>
+                          {feature.properties?.name ?? id}
+                        </title>
+                      </path>
+                    );
+                  })}
+                </g>
+              ))}
+            </svg>
+          )}
+
+          <div className="homeland-map-controls map-controls">
+            <button
+              onClick={() =>
+                changeMapZoom(mapZoom * 1.2)
+              }
+              disabled={mapZoom >= 2.5}
+            >
+              +
+            </button>
+            <span>{Math.round(mapZoom * 100)}%</span>
+            <button
+              onClick={() =>
+                changeMapZoom(mapZoom / 1.2)
+              }
+              disabled={mapZoom <= 1}
+            >
+              −
+            </button>
+            <button onClick={resetMapCamera}>⟳</button>
+          </div>
+
+          <aside className="homeland-purchase-panel">
+            <span className="eyebrow">
+              ÜLKE SEÇİMİ
+            </span>
+            <h3>
+              {homeland?.name ??
+                COUNTRY_NAMES[selectedHomeland] ??
+                selectedHomeland}
+            </h3>
+
+            {canPurchase ? (
+              <>
+                <div className="purchase-stat">
                   <span>Başkent</span>
-                  <b>{homelandCapital?.name ?? "—"}</b>
+                  <b>
+                    {homelandCapital?.name ?? "—"}
+                  </b>
                 </div>
-                <div>
+                <div className="purchase-stat">
                   <span>Şehir</span>
                   <b>{homelandCities.length}</b>
                 </div>
-                <div>
+                <div className="purchase-stat">
                   <span>Asker basma kapasitesi</span>
                   <b>{homelandCapacity}</b>
                 </div>
-                <div>
-                  <span>Şehir ekonomisi</span>
-                  <b>{homelandIncome.toLocaleString("tr-TR")}</b>
+                <div className="purchase-stat">
+                  <span>Başlangıç seçimi</span>
+                  <b>ÜCRETSİZ</b>
                 </div>
-              </div>
 
-              <div className="starting-resources">
-                <span className="eyebrow">STARTING RESOURCES</span>
-                <div>
-                  <span>Altın</span>
-                  <b>{homeland.startingResources.gold}</b>
-                </div>
-                <div>
-                  <span>Çelik</span>
-                  <b>{homeland.startingResources.steel}</b>
-                </div>
-                <div>
-                  <span>Petrol</span>
-                  <b>{homeland.startingResources.oil}</b>
-                </div>
+                <button
+                  className="purchase-country-button"
+                  onClick={() =>
+                    setupGameFromHomeland(
+                      selectedHomeland
+                    )
+                  }
+                >
+                  ANAVATAN OLARAK SATIN AL
+                </button>
+                <small>
+                  Satın alma tamamlandığında ülke
+                  senin oyuncu rengin olan mavi ile
+                  işaretlenecek.
+                </small>
+              </>
+            ) : (
+              <div className="unsupported-country-note">
+                Bu ülke için şehir ve üretim ağı
+                henüz hazırlanmadı. Haritadaki
+                desteklenen ülkelerden birini seç.
               </div>
+            )}
+          </aside>
 
-              <div className="starting-force-preview">
-                <span className="eyebrow">CAPITAL GARRISON</span>
-                {Object.entries(
-                  startingGarrisonFor(homeland.code)
-                ).map(([unitId, quantity]) => {
-                  const unit = UNIT_DEFINITIONS.find(
-                    (item) => item.id === unitId
-                  );
-                  return (
-                    <div key={unitId}>
-                      <span>{unit?.name ?? unitId}</span>
-                      <b>{quantity}</b>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <button
-                className="primary homeland-confirm"
-                onClick={() =>
-                  setupGameFromHomeland(selectedHomeland)
-                }
-              >
-                {homeland.name.toUpperCase()} İLE BAŞLA
-              </button>
-            </aside>
-          </section>
+          <div className="homeland-map-message">
+            Haritada ülkeye tıkla · seç · satın al ·
+            savaşa başla
+          </div>
         </main>
       </div>
     );
@@ -1367,7 +1573,15 @@ export default function App() {
               </label>
             </div>
 
-            <button className="primary" onClick={() => setScreen("homeland")}>
+            <button
+              className="primary"
+              onClick={() => {
+                setMapZoom(1);
+                setMapCenter({ x: 500, y: 250 });
+                setSelectedHomeland("TUR");
+                setScreen("homeland");
+              }}
+            >
               YENİ OYUN OLUŞTUR
             </button>
           </section>
@@ -1396,6 +1610,9 @@ export default function App() {
                 <button
                   onClick={() => {
                     setRoomName(name);
+                    setMapZoom(1);
+                    setMapCenter({ x: 500, y: 250 });
+                    setSelectedHomeland("TUR");
                     setScreen("homeland");
                   }}
                 >
@@ -1435,6 +1652,12 @@ export default function App() {
           <span>PETROL</span>
           <strong>{resources.oil.toLocaleString("tr-TR")}</strong>
         </div>
+        <button
+          className="top-end-turn"
+          onClick={advanceTurn}
+        >
+          TURU BİTİR
+        </button>
         <button className="ghost" onClick={() => setScreen("lobby")}>
           LOBİ
         </button>
@@ -1580,6 +1803,7 @@ export default function App() {
                           onClick={() => {
                             setSelectedId(id);
                             setSelectedCityId("");
+                            setCityPanelOpen(false);
                             setNotice(
                               `${feature.properties?.name ?? id} seçildi.`
                             );
@@ -1820,23 +2044,269 @@ export default function App() {
               Physical base: NASA Blue Marble
             </div>
 
-            <div className="map-overlay">
-              <span>SEÇİLİ ÜLKE</span>
+            {cityPanelOpen && selectedCity && (
+              <div className="city-command-window">
+                <div className="city-command-title">
+                  <div>
+                    <strong>{selectedCity.name}</strong>
+                    <small>
+                      {selectedCity.isCapital ? "★ Başkent" : "Şehir"} ·
+                      {" "}Kapasite {selectedCity.recruitCapacity}
+                    </small>
+                  </div>
+                  <button
+                    onClick={() => setCityPanelOpen(false)}
+                    aria-label="Şehir penceresini kapat"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="city-command-meta">
+                  <span>
+                    Sahip: <b>{selectedCityOwner ?? "Tarafsız"}</b>
+                  </span>
+                  <span>
+                    Gelir: <b>{selectedCity.income}</b>
+                  </span>
+                </div>
+
+                <div className="city-command-tabs">
+                  <button
+                    className={
+                      cityPanelTab === "production"
+                        ? "active"
+                        : ""
+                    }
+                    onClick={() =>
+                      setCityPanelTab("production")
+                    }
+                  >
+                    ASKER BAS
+                  </button>
+                  <button
+                    className={
+                      cityPanelTab === "movement"
+                        ? "active"
+                        : ""
+                    }
+                    onClick={() =>
+                      setCityPanelTab("movement")
+                    }
+                  >
+                    BİRLİK TAŞI
+                  </button>
+                </div>
+
+                {cityPanelTab === "production" ? (
+                  <div className="city-unit-list">
+                    <div className="city-capacity-line">
+                      <span>Üretilebilir birlik</span>
+                      <b>
+                        {selectedCity.recruitCapacity -
+                          selectedCityActiveOrders}
+                        /{selectedCity.recruitCapacity}
+                      </b>
+                    </div>
+
+                    {UNIT_DEFINITIONS.map((unit) => {
+                      const pendingQty = productionQueue
+                        .filter(
+                          (order) =>
+                            order.countryId ===
+                              selectedCity.code &&
+                            order.unitId === unit.id
+                        )
+                        .reduce(
+                          (sum, order) =>
+                            sum + order.quantity,
+                          0
+                        );
+                      const cost = getProductionCost(
+                        unit,
+                        1
+                      );
+
+                      return (
+                        <div
+                          className="city-unit-row"
+                          key={unit.id}
+                          onClick={() =>
+                            setSelectedUnitId(unit.id)
+                          }
+                        >
+                          <div className="city-unit-icon">
+                            {UNIT_ICON_BY_ID[unit.id] ? (
+                              <img
+                                src={
+                                  UNIT_ICON_BY_ID[unit.id]
+                                }
+                                alt={unit.name}
+                              />
+                            ) : (
+                              <span>
+                                {unit.domain === "land"
+                                  ? "▰"
+                                  : unit.domain === "air"
+                                    ? "✈"
+                                    : "◆"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="city-unit-info">
+                            <strong>{unit.name}</strong>
+                            <small>
+                              {cost.gold} A ·{" "}
+                              {cost.steel} Ç ·{" "}
+                              {cost.oil} P
+                            </small>
+                          </div>
+                          <div className="city-unit-pending">
+                            {pendingQty > 0
+                              ? pendingQty
+                              : ""}
+                          </div>
+                          <button
+                            className="city-unit-minus"
+                            disabled={pendingQty <= 0}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              cancelLatestProductionUnit(
+                                unit.id
+                              );
+                            }}
+                          >
+                            −
+                          </button>
+                          <button
+                            className="city-unit-plus"
+                            disabled={
+                              !ownsSelectedCity ||
+                              selectedCityActiveOrders >=
+                                selectedCity.recruitCapacity
+                            }
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              queueProductionUnit(
+                                unit.id,
+                                1
+                              );
+                            }}
+                          >
+                            +
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="city-movement-list">
+                    <div className="movement-help">
+                      Taşınacak birlikleri seç, sonra
+                      hedef şehre tıkla.
+                    </div>
+
+                    {UNIT_DEFINITIONS.filter(
+                      (unit) =>
+                        (selectedGarrison[unit.id] ??
+                          0) > 0
+                    ).map((unit) => {
+                      const available =
+                        selectedGarrison[unit.id] ?? 0;
+                      const selected =
+                        moveDraft[unit.id] ?? 0;
+
+                      return (
+                        <div
+                          className="city-unit-row movement"
+                          key={unit.id}
+                        >
+                          <div className="city-unit-icon">
+                            {UNIT_ICON_BY_ID[unit.id] ? (
+                              <img
+                                src={
+                                  UNIT_ICON_BY_ID[unit.id]
+                                }
+                                alt={unit.name}
+                              />
+                            ) : (
+                              <span>
+                                {unit.domain === "land"
+                                  ? "▰"
+                                  : unit.domain === "air"
+                                    ? "✈"
+                                    : "◆"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="city-unit-info">
+                            <strong>{unit.name}</strong>
+                            <small>
+                              Garnizon:{" "}
+                              {available.toLocaleString(
+                                "tr-TR"
+                              )}
+                              {unit.domain === "naval"
+                                ? " · liman gerekli"
+                                : ""}
+                            </small>
+                          </div>
+                          <button
+                            onClick={() =>
+                              adjustMoveDraft(
+                                unit.id,
+                                -1
+                              )
+                            }
+                            disabled={selected <= 0}
+                          >
+                            −
+                          </button>
+                          <b className="move-draft-count">
+                            {selected}
+                          </b>
+                          <button
+                            onClick={() =>
+                              adjustMoveDraft(
+                                unit.id,
+                                Math.max(
+                                  1,
+                                  Math.ceil(
+                                    available / 10
+                                  )
+                                )
+                              )
+                            }
+                            disabled={
+                              unit.domain === "naval" ||
+                              selected >= available
+                            }
+                          >
+                            +
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    <button
+                      className="city-transfer-button"
+                      disabled={!ownsSelectedCity}
+                      onClick={startCityTransfer}
+                    >
+                      BİRLİKLERİ TAŞI
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="map-overlay compact">
               <strong>{selectedName}</strong>
               <small>
-                {selectedState.owner ?? "Tarafsız"} • {selectedState.troops} birlik
+                {selectedState.owner ?? "Tarafsız"} ·
+                {" "}Şehir {controlledCountryCities.length}/
+                {selectedCountryCities.length}
               </small>
-              <small className="city-center">
-                Şehir kontrolü: {controlledCountryCities.length}/
-                {selectedCountryCities.length} · Kapasite:
-                {controlledCountryRecruitCapacity}/
-                {selectedCountryRecruitCapacity}
-              </small>
-              {selectedCity && (
-                <small className="city-center">
-                  Seçili şehir: {selectedCity.name} · Kapasite {selectedCity.recruitCapacity}
-                </small>
-              )}
             </div>
           </div>
         </section>
