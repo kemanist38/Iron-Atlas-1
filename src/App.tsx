@@ -53,6 +53,8 @@ type MovementOrder = {
   unitId: string;
   quantity: number;
   distanceKm: number;
+  departureTurn: number;
+  arrivalTurn: number;
 };
 type CapitalHold = {
   holder: string | null;
@@ -168,7 +170,28 @@ function haversineKm(a: CityNode, b: CityNode) {
 }
 
 function movementRangeKm(unit: UnitDefinition) {
-  return unit.stats.movement * 330;
+  // movement stat is converted into a realistic per-turn world distance.
+  // Land units advance hundreds of km per turn; aircraft and ships cover more.
+  const kmPerMovementPoint =
+    unit.domain === "air"
+      ? 180
+      : unit.domain === "naval"
+        ? 150
+        : 105;
+
+  const minimumRange =
+    unit.domain === "air"
+      ? 700
+      : unit.domain === "naval"
+        ? 600
+        : 180;
+
+  return Math.round(
+    Math.max(
+      minimumRange,
+      unit.stats.movement * kmPerMovementPoint
+    )
+  );
 }
 
 function productionTurns(unit: UnitDefinition) {
@@ -656,20 +679,27 @@ export default function App() {
     const orders: MovementOrder[] = [];
     const skipped: string[] = [];
 
+    const groupRangeKm = Math.max(1, activeMoveRangeKm);
+    const travelTurns = Math.max(
+      1,
+      Math.ceil(distanceKm / groupRangeKm)
+    );
+    const arrivalTurn = turn + travelTurns;
+
     Object.entries(moveDraft).forEach(
       ([unitId, requested]) => {
         if (requested <= 0) return;
         const baseUnit = UNIT_BY_ID[unitId];
         if (!baseUnit) return;
         const unit = effectiveUnit(baseUnit);
+
         if (unit.domain === "naval") {
-          skipped.push(unit.name + " (liman sistemi bekleniyor)");
+          skipped.push(
+            unit.name + " (liman sistemi bekleniyor)"
+          );
           return;
         }
-        if (distanceKm > movementRangeKm(unit)) {
-          skipped.push(unit.name + " (menzil dışında)");
-          return;
-        }
+
         const available = sourceUnits[unitId] ?? 0;
         const quantity = Math.min(requested, available);
         if (quantity <= 0) return;
@@ -687,6 +717,8 @@ export default function App() {
           unitId,
           quantity,
           distanceKm,
+          departureTurn: turn,
+          arrivalTurn,
         });
       }
     );
@@ -712,8 +744,16 @@ export default function App() {
     setMoveDraft({});
     setSelectedCountry(target.countryCode);
     setSelectedCityCode(target.code);
+
+    const action =
+      cityOwners[target.code] === currentPlayer
+        ? "hareket"
+        : "saldırı";
+
     setNotice(
-      `${source.name} → ${target.name}: ${orders.length} birlik grubu emre alındı.${skipped.length ? " " + skipped.join(" · ") : ""}`
+      `${source.name} → ${target.name}: ${Math.round(
+        distanceKm
+      ).toLocaleString("tr-TR")} km · ${travelTurns} tur ${action} yolculuğu · varış Tur ${arrivalTurn}.${skipped.length ? " " + skipped.join(" · ") : ""}`
     );
   }
 
@@ -731,7 +771,14 @@ export default function App() {
     const nextCountryOwners = { ...countryOwners };
     const combatLog: string[] = [];
 
-    movementQueue.forEach((order) => {
+    const arrivingMovementOrders = movementQueue.filter(
+      (order) => order.arrivalTurn <= nextTurn
+    );
+    const inTransitMovementOrders = movementQueue.filter(
+      (order) => order.arrivalTurn > nextTurn
+    );
+
+    arrivingMovementOrders.forEach((order) => {
       const targetCity = CITIES.find(
         (city) => city.code === order.toCode
       );
@@ -905,7 +952,7 @@ export default function App() {
     setCountryOwners(nextCountryOwners);
     setCapitalHolds(nextHolds);
     setProductionQueue(validPending);
-    setMovementQueue([]);
+    setMovementQueue(inTransitMovementOrders);
     setTurn(nextTurn);
     setNotice(
       `Tur ${nextTurn}: +${goldIncome} Altın, +${steelIncome} Çelik, +${oilIncome} Petrol.${combatLog.length ? " " + combatLog.join(" ") : ""}`
@@ -1032,7 +1079,7 @@ export default function App() {
                   inTargetMode &&
                   city.code !== activeMoveSource?.code &&
                   targetDistance <= activeMoveRangeKm;
-                const isUnreachableTarget =
+                const isMultiTurnTarget =
                   inTargetMode &&
                   city.code !== activeMoveSource?.code &&
                   targetDistance > activeMoveRangeKm;
@@ -1047,7 +1094,7 @@ export default function App() {
                       "city-marker " +
                       (isSelected ? "selected " : "") +
                       (isReachableTarget ? "reachable-target " : "") +
-                      (isUnreachableTarget ? "unreachable-target " : "")
+                      (isMultiTurnTarget ? "multi-turn-target " : "")
                     }
                     transform={`translate(${x} ${y}) scale(${1 / mapZoom})`}
                     onClick={(event) => {
@@ -1137,21 +1184,35 @@ export default function App() {
                   sx,
                   txRaw
                 );
+                const midX = (sx + tx) / 2 + offset;
+                const midY = (sy + ty) / 2;
+                const turnsLeft = Math.max(
+                  1,
+                  order.arrivalTurn - turn
+                );
                 return (
-                  <line
-                    key={
-                      order.id + "-route-" + offset
-                    }
-                    x1={sx + offset}
-                    y1={sy}
-                    x2={tx + offset}
-                    y2={ty}
-                    className={
-                      order.kind === "attack"
-                        ? "route attack"
-                        : "route"
-                    }
-                  />
+                  <g key={order.id + "-route-" + offset}>
+                    <line
+                      x1={sx + offset}
+                      y1={sy}
+                      x2={tx + offset}
+                      y2={ty}
+                      className={
+                        order.kind === "attack"
+                          ? "route attack"
+                          : "route"
+                      }
+                    />
+                    <g
+                      transform={`translate(${midX} ${midY}) scale(${1 / mapZoom})`}
+                      className="route-eta"
+                    >
+                      <rect x="-13" y="-7" width="26" height="14" rx="4" />
+                      <text y="1">
+                        {turnsLeft}T
+                      </text>
+                    </g>
+                  </g>
                 );
               })}
           </g>
@@ -2055,7 +2116,7 @@ export default function App() {
                 <div className="move-summary">
                   <span>Seçilen birlik</span>
                   <b>{moveSelectionCount}</b>
-                  <span>Menzil</span>
+                  <span>1 tur menzili</span>
                   <b>
                     {moveSelectionCount > 0
                       ? Math.round(activeMoveRangeKm).toLocaleString("tr-TR") + " km"
@@ -2085,8 +2146,8 @@ export default function App() {
         {moveSourceCode && (
           <div className="target-hint">
             <span>
-              HEDEF ŞEHRİ SEÇ · {moveSelectionCount} birlik · menzil{" "}
-              {Math.round(activeMoveRangeKm).toLocaleString("tr-TR")} km
+              HEDEF ŞEHRİ SEÇ · {moveSelectionCount} birlik · 1 tur menzili{" "}
+              {Math.round(activeMoveRangeKm).toLocaleString("tr-TR")} km · yeşil: 1 tur / sarı: çok turlu
             </span>
             <button
               onClick={() => {
