@@ -3206,6 +3206,22 @@ export default function App() {
           </section>
         )}
 
+        {lastTurnEvents.length > 0 && (
+          <aside className="turn-report panel">
+            <div className="turn-report-title">
+              TUR {turn} RAPORU
+            </div>
+            {lastTurnEvents.map((event, index) => (
+              <div
+                className="turn-report-event"
+                key={turn + "-" + index + "-" + event}
+              >
+                {event}
+              </div>
+            ))}
+          </aside>
+        )}
+
         <div className="notice-bar">{notice}</div>
 
         {(moveSourceCode || moveSourceArmyId) && (
