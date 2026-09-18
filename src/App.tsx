@@ -109,11 +109,7 @@ const INITIAL_GARRISONS: Garrison = {
   "JPN-TYO": { infantry: 700, light_tank: 18, fighter: 18, attack_helicopter: 6, battleship: 4 },
 };
 
-const players = [
-  { name: "Atlas", status: "Hazır", color: "#2687e8" },
-  { name: "Dogan", status: "Hazır", color: "#d84c4c" },
-  { name: "Nova", status: "Bekliyor", color: "#36b978" },
-];
+
 
 const cityNodes: CityNode[] = [
   // Türkiye — 1 başkent + 5 asker basma şehri
@@ -443,7 +439,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("lobby");
   const [commander, setCommander] = useState("Atlas");
   const [roomName, setRoomName] = useState("Global War");
-  const [selectedHomeland, setSelectedHomeland] = useState("TUR");
+  const [selectedHomeland, setSelectedHomeland] = useState("");
   const [cityPanelOpen, setCityPanelOpen] = useState(false);
   const [cityPanelTab, setCityPanelTab] =
     useState<"production" | "movement">("production");
@@ -1479,7 +1475,7 @@ export default function App() {
             <h3>
               {homeland?.name ??
                 COUNTRY_NAMES[selectedHomeland] ??
-                selectedHomeland}
+                (selectedHomeland || "Bir ülke seç")}
             </h3>
 
             {canPurchase ? (
@@ -1578,7 +1574,7 @@ export default function App() {
               onClick={() => {
                 setMapZoom(1);
                 setMapCenter({ x: 500, y: 250 });
-                setSelectedHomeland("TUR");
+                setSelectedHomeland("");
                 setScreen("homeland");
               }}
             >
@@ -1612,7 +1608,7 @@ export default function App() {
                     setRoomName(name);
                     setMapZoom(1);
                     setMapCenter({ x: 500, y: 250 });
-                    setSelectedHomeland("TUR");
+                    setSelectedHomeland("");
                     setScreen("homeland");
                   }}
                 >
@@ -2477,7 +2473,6 @@ export default function App() {
                   <div className="queue-order" key={order.id}>
                     <div>
                       <strong>
-                        {order.kind === "attack" ? "SALDIRI · " : ""}
                         {order.quantity} × {order.unitName}
                       </strong>
                       <small>{order.cityName}</small>
