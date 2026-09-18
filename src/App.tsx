@@ -236,25 +236,26 @@ type HomelandOption = {
   name: string;
   region: string;
   description: string;
+  purchasePrice: number;
   startingResources: Resources;
 };
 
 const HOMELAND_OPTIONS: HomelandOption[] = [
-  { code: "TUR", name: "Türkiye", region: "Avrupa / Orta Doğu", description: "Avrupa, Kafkasya ve Orta Doğu arasında dengeli başlangıç.", startingResources: { gold: 1500, steel: 900, oil: 720 } },
-  { code: "DEU", name: "Almanya", region: "Avrupa", description: "Yüksek asker basma kapasitesi ve merkezi Avrupa konumu.", startingResources: { gold: 1650, steel: 980, oil: 620 } },
-  { code: "FRA", name: "Fransa", region: "Avrupa", description: "Batı Avrupa ve Akdeniz'e erişimi olan dengeli anavatan.", startingResources: { gold: 1580, steel: 860, oil: 650 } },
-  { code: "GBR", name: "Birleşik Krallık", region: "Avrupa", description: "Ada savunması ve Atlantik erişimi güçlü başlangıç.", startingResources: { gold: 1700, steel: 820, oil: 700 } },
-  { code: "ITA", name: "İtalya", region: "Avrupa", description: "Akdeniz merkezli, kuzey-güney operasyonlarına uygun.", startingResources: { gold: 1480, steel: 820, oil: 640 } },
-  { code: "ESP", name: "İspanya", region: "Avrupa", description: "Atlantik ve Akdeniz'e çift yönlü çıkış.", startingResources: { gold: 1450, steel: 780, oil: 680 } },
-  { code: "POL", name: "Polonya", region: "Avrupa", description: "Doğu ve Batı Avrupa arasında kara savaşı odaklı konum.", startingResources: { gold: 1400, steel: 900, oil: 560 } },
-  { code: "USA", name: "ABD", region: "Kuzey Amerika", description: "Geniş şehir ağı, yüksek ekonomi ve iki okyanusa erişim.", startingResources: { gold: 1900, steel: 1100, oil: 1000 } },
-  { code: "RUS", name: "Rusya", region: "Avrasya", description: "Çok geniş coğrafya, yüksek savunma derinliği ve kaynak tabanı.", startingResources: { gold: 1700, steel: 1200, oil: 1150 } },
-  { code: "CHN", name: "Çin", region: "Asya", description: "Yüksek şehir kapasitesi ve yoğun kara üretimi.", startingResources: { gold: 1750, steel: 1150, oil: 820 } },
-  { code: "JPN", name: "Japonya", region: "Asya / Pasifik", description: "Pasifik odaklı ada başlangıcı ve güçlü hava-deniz konumu.", startingResources: { gold: 1600, steel: 850, oil: 760 } },
-  { code: "IND", name: "Hindistan", region: "Güney Asya", description: "Hint Okyanusu ve Asya kara yollarına erişim.", startingResources: { gold: 1600, steel: 900, oil: 700 } },
-  { code: "BRA", name: "Brezilya", region: "Güney Amerika", description: "Geniş güvenli arka alan ve güçlü şehir ekonomisi.", startingResources: { gold: 1550, steel: 850, oil: 760 } },
-  { code: "AUS", name: "Avustralya", region: "Okyanusya", description: "İzole savunma, Pasifik ve Hint Okyanusu operasyonları.", startingResources: { gold: 1500, steel: 800, oil: 820 } },
-];
+  { code: "TUR", name: "Türkiye", region: "Avrupa / Orta Doğu", description: "Avrupa, Kafkasya ve Orta Doğu arasında dengeli başlangıç.", purchasePrice: 2800, startingResources: { gold: 0, steel: 900, oil: 720 } },
+  { code: "DEU", name: "Almanya", region: "Avrupa", description: "Yüksek asker basma kapasitesi ve merkezi Avrupa konumu.", purchasePrice: 4500, startingResources: { gold: 0, steel: 980, oil: 620 } },
+  { code: "FRA", name: "Fransa", region: "Avrupa", description: "Batı Avrupa ve Akdeniz'e erişimi olan dengeli anavatan.", purchasePrice: 4200, startingResources: { gold: 0, steel: 860, oil: 650 } },
+  { code: "GBR", name: "Birleşik Krallık", region: "Avrupa", description: "Ada savunması ve Atlantik erişimi güçlü başlangıç.", purchasePrice: 4600, startingResources: { gold: 0, steel: 820, oil: 700 } },
+  { code: "ITA", name: "İtalya", region: "Avrupa", description: "Akdeniz merkezli, kuzey-güney operasyonlarına uygun.", purchasePrice: 3400, startingResources: { gold: 0, steel: 820, oil: 640 } },
+  { code: "ESP", name: "İspanya", region: "Avrupa", description: "Atlantik ve Akdeniz'e çift yönlü çıkış.", purchasePrice: 3200, startingResources: { gold: 0, steel: 780, oil: 680 } },
+  { code: "POL", name: "Polonya", region: "Avrupa", description: "Doğu ve Batı Avrupa arasında kara savaşı odaklı konum.", purchasePrice: 2600, startingResources: { gold: 0, steel: 900, oil: 560 } },
+  { code: "USA", name: "ABD", region: "Kuzey Amerika", description: "Geniş şehir ağı, yüksek ekonomi ve iki okyanusa erişim.", purchasePrice: 8000, startingResources: { gold: 0, steel: 1100, oil: 1000 } },
+  { code: "RUS", name: "Rusya", region: "Avrasya", description: "Çok geniş coğrafya, yüksek savunma derinliği ve kaynak tabanı.", purchasePrice: 7500, startingResources: { gold: 0, steel: 1200, oil: 1150 } },
+  { code: "CHN", name: "Çin", region: "Asya", description: "Yüksek şehir kapasitesi ve yoğun kara üretimi.", purchasePrice: 7000, startingResources: { gold: 0, steel: 1150, oil: 820 } },
+  { code: "JPN", name: "Japonya", region: "Asya / Pasifik", description: "Pasifik odaklı ada başlangıcı ve güçlü hava-deniz konumu.", purchasePrice: 4200, startingResources: { gold: 0, steel: 850, oil: 760 } },
+  { code: "IND", name: "Hindistan", region: "Güney Asya", description: "Hint Okyanusu ve Asya kara yollarına erişim.", purchasePrice: 6000, startingResources: { gold: 0, steel: 900, oil: 700 } },
+  { code: "BRA", name: "Brezilya", region: "Güney Amerika", description: "Geniş güvenli arka alan ve güçlü şehir ekonomisi.", purchasePrice: 5200, startingResources: { gold: 0, steel: 850, oil: 760 } },
+  { code: "AUS", name: "Avustralya", region: "Okyanusya", description: "İzole savunma, Pasifik ve Hint Okyanusu operasyonları.", purchasePrice: 3800, startingResources: { gold: 0, steel: 800, oil: 820 } },
+]
 
 const COUNTRY_NAMES = Object.fromEntries(
   HOMELAND_OPTIONS.map((item) => [item.code, item.name])
@@ -440,6 +441,7 @@ export default function App() {
   const [commander, setCommander] = useState("Atlas");
   const [roomName, setRoomName] = useState("Global War");
   const [selectedHomeland, setSelectedHomeland] = useState("");
+  const [startingMoney, setStartingMoney] = useState(10000);
   const [cityPanelOpen, setCityPanelOpen] = useState(false);
   const [cityPanelTab, setCityPanelTab] =
     useState<"production" | "movement">("production");
@@ -566,6 +568,19 @@ export default function App() {
       (item) => item.code === countryCode
     ) ?? HOMELAND_OPTIONS[0];
 
+    if (playerHome.purchasePrice > startingMoney) {
+      setNotice(
+        playerHome.name +
+          " için yeterli başlangıç paran yok. Fiyat: " +
+          playerHome.purchasePrice.toLocaleString("tr-TR") +
+          " Altın."
+      );
+      return;
+    }
+
+    const remainingStartingGold =
+      startingMoney - playerHome.purchasePrice;
+
     const opponentCandidates = ["RUS", "FRA", "CHN", "USA", "DEU", "JPN"]
       .filter((code) => code !== countryCode);
     const doganHome = opponentCandidates[0];
@@ -644,7 +659,11 @@ export default function App() {
         startingGarrisonFor(novaHome);
     }
 
-    setResources(playerHome.startingResources);
+    setResources({
+      gold: remainingStartingGold,
+      steel: playerHome.startingResources.steel,
+      oil: playerHome.startingResources.oil,
+    });
     setCountryState(nextCountryState);
     setCityOwners(nextCityOwners);
     setGarrisons(nextGarrisons);
@@ -668,7 +687,11 @@ export default function App() {
 
     setNotice(
       playerHome.name +
-        " anavatan olarak seçildi. Başkent ve başlangıç ordusu hazır."
+        " satın alındı. " +
+        playerHome.purchasePrice.toLocaleString("tr-TR") +
+        " Altın ödendi. Kalan: " +
+        remainingStartingGold.toLocaleString("tr-TR") +
+        " Altın."
     );
     setScreen("game");
   }
@@ -1431,6 +1454,10 @@ export default function App() {
                             : "unsupported ") +
                           (selected ? "selected" : "")
                         }
+                        onPointerDown={(event) => {
+                          event.stopPropagation();
+                          setSelectedHomeland(id);
+                        }}
                         onClick={(event) => {
                           event.stopPropagation();
                           setSelectedHomeland(id);
@@ -1478,6 +1505,24 @@ export default function App() {
                 (selectedHomeland || "Bir ülke seç")}
             </h3>
 
+            <div className="starting-money-picker">
+              <span>BAŞLANGIÇ PARASI</span>
+              <div>
+                {[5000, 10000, 25000, 50000].map((amount) => (
+                  <button
+                    key={amount}
+                    className={startingMoney === amount ? "active" : ""}
+                    onClick={() => setStartingMoney(amount)}
+                  >
+                    {amount.toLocaleString("tr-TR")}
+                  </button>
+                ))}
+              </div>
+              <small>
+                Bütçe: <b>{startingMoney.toLocaleString("tr-TR")} Altın</b>
+              </small>
+            </div>
+
             {canPurchase ? (
               <>
                 <div className="purchase-stat">
@@ -1494,25 +1539,39 @@ export default function App() {
                   <span>Asker basma kapasitesi</span>
                   <b>{homelandCapacity}</b>
                 </div>
+                <div className="purchase-stat country-price-row">
+                  <span>Ülke fiyatı</span>
+                  <b>
+                    {homeland.purchasePrice.toLocaleString("tr-TR")} Altın
+                  </b>
+                </div>
                 <div className="purchase-stat">
-                  <span>Başlangıç seçimi</span>
-                  <b>ÜCRETSİZ</b>
+                  <span>Satın alma sonrası</span>
+                  <b>
+                    {Math.max(
+                      0,
+                      startingMoney - homeland.purchasePrice
+                    ).toLocaleString("tr-TR")} Altın
+                  </b>
                 </div>
 
                 <button
                   className="purchase-country-button"
+                  disabled={homeland.purchasePrice > startingMoney}
                   onClick={() =>
                     setupGameFromHomeland(
                       selectedHomeland
                     )
                   }
                 >
-                  ANAVATAN OLARAK SATIN AL
+                  {homeland.purchasePrice > startingMoney
+                    ? "YETERSİZ BÜTÇE"
+                    : "ÜLKEYİ SATIN AL VE BAŞLA"}
                 </button>
                 <small>
-                  Satın alma tamamlandığında ülke
-                  senin oyuncu rengin olan mavi ile
-                  işaretlenecek.
+                  Ülke bedeli başlangıç paran üzerinden düşülür.
+                  Oyuna kalan Altın ile başlarsın ve satın alınan ülke
+                  mavi oyuncu renginle işaretlenir.
                 </small>
               </>
             ) : (
@@ -1575,6 +1634,7 @@ export default function App() {
                 setMapZoom(1);
                 setMapCenter({ x: 500, y: 250 });
                 setSelectedHomeland("");
+                setStartingMoney(10000);
                 setScreen("homeland");
               }}
             >
