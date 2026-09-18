@@ -1914,24 +1914,26 @@ export default function App() {
                   ))}
                 </div>
 
-                <button
-                  className="purchase-country-button"
-                  disabled={homeland.purchasePrice > startingMoney}
-                  onClick={() =>
-                    setupGameFromHomeland(
-                      selectedHomeland
-                    )
-                  }
-                >
-                  {homeland.purchasePrice > startingMoney
-                    ? "YETERSİZ BÜTÇE"
-                    : "ÜLKEYİ SATIN AL VE BAŞLA"}
-                </button>
-                <small>
-                  Ülke bedeli başlangıç paran üzerinden düşülür.
-                  Oyuna kalan Altın ile başlarsın ve satın alınan ülke
-                  mavi oyuncu renginle işaretlenir.
-                </small>
+                <div className="purchase-action-sticky">
+                  <button
+                    className="purchase-country-button"
+                    disabled={homeland.purchasePrice > startingMoney}
+                    onClick={() =>
+                      setupGameFromHomeland(
+                        selectedHomeland
+                      )
+                    }
+                  >
+                    {homeland.purchasePrice > startingMoney
+                      ? "YETERSİZ BÜTÇE"
+                      : "ÜLKEYİ SATIN AL VE BAŞLA"}
+                  </button>
+                  <small>
+                    Ülke bedeli başlangıç paran üzerinden düşülür.
+                    Oyuna kalan Altın ile başlarsın ve satın alınan ülke
+                    oyuncu renginle işaretlenir.
+                  </small>
+                </div>
               </>
             ) : (
               <div className="unsupported-country-note">
