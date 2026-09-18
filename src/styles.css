@@ -1363,3 +1363,65 @@ input:focus {
     font-size: 8px;
   }
 }
+
+
+/* v1.2 terrain base */
+.terrain-base {
+  opacity: .92;
+  pointer-events: none;
+}
+
+.country {
+  opacity: .28;
+  stroke: rgba(226, 232, 238, .42);
+  stroke-width: .65;
+  mix-blend-mode: multiply;
+}
+
+.country.owner-neutral {
+  opacity: .10;
+  fill: #2e3944 !important;
+}
+
+.country.owner-atlas {
+  opacity: .34;
+}
+
+.country.owner-dogan {
+  opacity: .34;
+}
+
+.country.owner-nova {
+  opacity: .34;
+}
+
+.country:hover {
+  opacity: .48;
+  stroke: #ffffff;
+  stroke-width: 1.15;
+  filter: none;
+}
+
+.country.selected {
+  opacity: .46;
+  stroke: #ffffff;
+  stroke-width: 2;
+  filter: drop-shadow(0 0 2px rgba(255,255,255,.45));
+}
+
+.map-wrap {
+  background: #18343a;
+}
+
+.map-attribution {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  z-index: 6;
+  padding: 3px 5px;
+  border-radius: 3px;
+  background: rgba(4, 9, 13, .58);
+  color: rgba(226, 231, 234, .62);
+  font-size: 7px;
+  pointer-events: none;
+}
