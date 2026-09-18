@@ -138,3 +138,52 @@ export const COUNTRY_BY_CODE = Object.fromEntries(
 export function citiesForCountry(code: string) {
   return CITIES.filter((city) => city.countryCode === code);
 }
+
+
+export const PORT_CITY_CODES = new Set([
+  "TUR-IST",
+  "TUR-IZM",
+  "TUR-SAM",
+  "DEU-HAM",
+  "FRA-MRS",
+  "FRA-BDX",
+  "GBR-LON",
+  "GBR-GLA",
+  "GBR-BEL",
+  "ITA-ROM",
+  "ITA-NAP",
+  "ITA-VEN",
+  "ESP-BCN",
+  "ESP-SEV",
+  "ESP-VLC",
+  "ESP-BIL",
+  "POL-GDN",
+  "USA-WAS",
+  "USA-NYC",
+  "USA-LAX",
+  "USA-SEA",
+  "USA-MIA",
+  "RUS-SPB",
+  "RUS-ROS",
+  "RUS-VLA",
+  "CHN-SHA",
+  "CHN-GUA",
+  "JPN-TYO",
+  "JPN-OSA",
+  "JPN-SAP",
+  "JPN-FUK",
+  "IND-MUM",
+  "IND-KOL",
+  "IND-CHE",
+  "BRA-RIO",
+  "BRA-REC",
+  "BRA-POA",
+  "AUS-SYD",
+  "AUS-MEL",
+  "AUS-PER",
+  "AUS-BRI",
+]);
+
+export function cityHasPort(cityCode: string) {
+  return PORT_CITY_CODES.has(cityCode);
+}
