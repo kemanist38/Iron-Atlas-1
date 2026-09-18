@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { UNIT_DEFINITIONS } from "./unitData";
 
 type Screen = "lobby" | "game";
 type Position = [number, number];
@@ -94,6 +95,7 @@ export default function App() {
   const [roomName, setRoomName] = useState("Global War");
   const [turn, setTurn] = useState(1);
   const [notice, setNotice] = useState("Komuta ağı çevrimiçi.");
+  const [selectedUnitId, setSelectedUnitId] = useState("infantry");
 
   const [world, setWorld] = useState<GeoFeature[]>([]);
   const [mapError, setMapError] = useState("");
@@ -131,6 +133,10 @@ export default function App() {
     selectedFeature?.properties?.name ??
     (selectedId === "TUR" ? "Turkey" : selectedId);
 
+  const selectedUnit =
+    UNIT_DEFINITIONS.find((unit) => unit.id === selectedUnitId) ??
+    UNIT_DEFINITIONS[0];
+
   function claimSelected() {
     setCountryState((current) => ({
       ...current,
@@ -162,11 +168,11 @@ export default function App() {
 
         <main className="lobby-shell">
           <section className="hero card">
-            <span className="eyebrow">STRATEGY PROTOTYPE • V0.2</span>
+            <span className="eyebrow">STRATEGY PROTOTYPE • V0.3</span>
             <h2>Dünyayı fethet. İttifak kur. Emirlerini aynı anda uygula.</h2>
             <p>
-              Gerçek ülke sınırları kullanan dünya haritası, komutan ekranı ve
-              temel savaş odası akışı artık çalışıyor.
+              Gerçek dünya haritasına ek olarak kara, hava ve deniz birlikleri
+              için ilk dengeleme verisi ve birim kataloğu da eklendi.
             </p>
 
             <div className="form-grid">
@@ -278,22 +284,21 @@ export default function App() {
           </div>
 
           <div className="divider" />
-          <span className="eyebrow">FORCES</span>
-          <div className="unit">
-            <span>♟ Piyade</span>
-            <b>1,000</b>
-          </div>
-          <div className="unit">
-            <span>▰ Tank</span>
-            <b>50</b>
-          </div>
-          <div className="unit">
-            <span>✈ Uçak</span>
-            <b>20</b>
-          </div>
-          <div className="unit">
-            <span>◆ Donanma</span>
-            <b>10</b>
+          <span className="eyebrow">UNIT CATALOG</span>
+          <div className="unit-catalog">
+            {UNIT_DEFINITIONS.map((unit) => (
+              <button
+                key={unit.id}
+                className={"unit-row " + (selectedUnitId === unit.id ? "active" : "")}
+                onClick={() => setSelectedUnitId(unit.id)}
+              >
+                <span className="unit-domain">
+                  {unit.domain === "land" ? "▰" : unit.domain === "air" ? "✈" : "◆"}
+                </span>
+                <span>{unit.name}</span>
+                <small>{unit.domain.toUpperCase()}</small>
+              </button>
+            ))}
           </div>
         </aside>
 
@@ -415,6 +420,23 @@ export default function App() {
           <div className="intel-row">
             <span>Moral</span>
             <b>%82</b>
+          </div>
+
+          <div className="unit-detail">
+            <span className="eyebrow">SELECTED UNIT</span>
+            <h4>{selectedUnit.name}</h4>
+            <div className="unit-stat-grid">
+              <div><span>Saldırı</span><b>{selectedUnit.attack}</b></div>
+              <div><span>Savunma</span><b>{selectedUnit.defense}</b></div>
+              <div><span>Hız</span><b>{selectedUnit.speed}</b></div>
+              <div><span>Üretim</span><b>{selectedUnit.productionTurns} tur</b></div>
+            </div>
+            <p>{selectedUnit.special}</p>
+            <div className="unit-cost">
+              <span>Altın {selectedUnit.goldCost}</span>
+              <span>Çelik {selectedUnit.steelCost}</span>
+              <span>Petrol {selectedUnit.oilCost}</span>
+            </div>
           </div>
 
           <button className="attack" onClick={claimSelected}>
