@@ -194,26 +194,6 @@ function isLandPoint(
   );
 }
 
-function isCoastalPoint(
-  features: WorldFeature[],
-  lon: number,
-  lat: number
-) {
-  const offsets = [
-    [1.1, 0],
-    [-1.1, 0],
-    [0, 1.1],
-    [0, -1.1],
-    [0.8, 0.8],
-    [-0.8, 0.8],
-    [0.8, -0.8],
-    [-0.8, -0.8],
-  ];
-  return offsets.some(
-    ([dx, dy]) => !isLandPoint(features, lon + dx, lat + dy)
-  );
-}
-
 function routeStaysOnSurface(
   features: WorldFeature[],
   source: { lon: number; lat: number },
