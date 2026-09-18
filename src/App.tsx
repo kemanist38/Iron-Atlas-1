@@ -1790,25 +1790,35 @@ export default function App() {
         );
 
         if (retreatCount > 0) {
-          const existingRetreat = nextFieldArmies.find(
-            (army) =>
-              army.player === group.player &&
-              Math.abs(army.x - group.sourceX) < 1 &&
-              Math.abs(army.y - group.sourceY) < 1
-          );
-          if (existingRetreat) {
-            existingRetreat.units = mergeArmy(
-              existingRetreat.units,
+          if (
+            group.fromCode &&
+            nextCityOwners[group.fromCode] === group.player
+          ) {
+            nextGarrisons[group.fromCode] = mergeArmy(
+              nextGarrisons[group.fromCode] ?? {},
               retreating
             );
           } else {
-            nextFieldArmies.push({
-              id: orderIdRef.current++,
-              player: group.player,
-              x: group.sourceX,
-              y: group.sourceY,
-              units: retreating,
-            });
+            const existingRetreat = nextFieldArmies.find(
+              (army) =>
+                army.player === group.player &&
+                Math.abs(army.x - group.sourceX) < 1 &&
+                Math.abs(army.y - group.sourceY) < 1
+            );
+            if (existingRetreat) {
+              existingRetreat.units = mergeArmy(
+                existingRetreat.units,
+                retreating
+              );
+            } else {
+              nextFieldArmies.push({
+                id: orderIdRef.current++,
+                player: group.player,
+                x: group.sourceX,
+                y: group.sourceY,
+                units: retreating,
+              });
+            }
           }
         }
 
