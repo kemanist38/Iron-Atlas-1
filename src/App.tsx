@@ -3245,6 +3245,97 @@ export default function App() {
             </g>
 
             {mode === "game" &&
+              landConnections.map((connection) => {
+                const from =
+                  allCityByCode[connection.fromCode];
+                const to =
+                  allCityByCode[connection.toCode];
+                if (!from || !to) return null;
+
+                const isActive =
+                  Boolean(activeLandSourceCityCode) &&
+                  (connection.fromCode ===
+                    activeLandSourceCityCode ||
+                    connection.toCode ===
+                      activeLandSourceCityCode);
+
+                if (mapZoom < 1.2 && !isActive) {
+                  return null;
+                }
+
+                const relation = connectionRelation(
+                  connection,
+                  cityOwners,
+                  currentPlayer
+                );
+                const fromOwner =
+                  cityOwners[from.code] ?? null;
+                const toOwner =
+                  cityOwners[to.code] ?? null;
+                const sameOwner =
+                  fromOwner &&
+                  fromOwner === toOwner
+                    ? fromOwner
+                    : null;
+
+                const [fromX, fromY] = project([
+                  from.lon,
+                  from.lat,
+                ]);
+                const [toBaseX, toY] = project([
+                  to.lon,
+                  to.lat,
+                ]);
+                const toX = shortestWrappedTargetX(
+                  fromX,
+                  toBaseX
+                );
+                const midX =
+                  (fromX + toX) / 2 + offset;
+                const midY = (fromY + toY) / 2;
+                const blocked =
+                  relation === "attack";
+
+                return (
+                  <g
+                    key={
+                      connection.id +
+                      "-connection-" +
+                      offset
+                    }
+                    className={
+                      "land-connection-group " +
+                      relation +
+                      (isActive ? " active" : "")
+                    }
+                  >
+                    <line
+                      x1={fromX + offset}
+                      y1={fromY}
+                      x2={toX + offset}
+                      y2={toY}
+                      className="land-connection"
+                      style={{
+                        stroke:
+                          sameOwner
+                            ? ownerColor(sameOwner)
+                            : undefined,
+                      }}
+                    />
+                    {blocked && (
+                      <g
+                        className="connection-blockade"
+                        transform={`translate(${midX} ${midY}) scale(${1 / mapZoom})`}
+                      >
+                        <circle r="5" />
+                        <path d="M-2.5-2.5 L2.5 2.5 M2.5-2.5 L-2.5 2.5" />
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+
+            {mode === "game" &&
               allCities.map((city) => {
                 const [baseX, y] = project([
                   city.lon,
@@ -3255,27 +3346,77 @@ export default function App() {
                   cityOwners[city.code] ?? null;
                 const isSelected =
                   selectedCityCode === city.code;
+                const landConnection =
+                  activeLandSourceCityCode
+                    ? connectionBetween(
+                        landConnections,
+                        activeLandSourceCityCode,
+                        city.code
+                      )
+                    : undefined;
                 const targetDistance =
                   activeMoveSource && activeMoveRangeKm > 0
-                    ? haversinePoints(activeMoveSource, city)
+                    ? moveSurface === "land" &&
+                      landConnection
+                      ? landConnection.distanceKm
+                      : haversinePoints(
+                          activeMoveSource,
+                          city
+                        )
                     : 0;
                 const inTargetMode = Boolean(activeMoveSource);
                 const isSameSourceCity =
                   activeMoveSource?.sourceKind === "city" &&
                   city.code === activeMoveSource.id;
+                const graphEligible =
+                  moveSurface !== "land" ||
+                  Boolean(landConnection);
                 const isReachableTarget =
                   inTargetMode &&
                   !isSameSourceCity &&
+                  graphEligible &&
                   targetDistance <= activeMoveRangeKm;
                 const isMultiTurnTarget =
                   inTargetMode &&
                   !isSameSourceCity &&
+                  graphEligible &&
                   targetDistance > activeMoveRangeKm;
                 const compactMarker =
                   mapZoom < 1.65 &&
                   !isSelected &&
                   !isReachableTarget &&
                   !isMultiTurnTarget;
+
+                const cityGarrison =
+                  garrisons[city.code] ?? {};
+                const domainTotals = Object.entries(
+                  cityGarrison
+                ).reduce(
+                  (totals, [unitId, quantity]) => {
+                    const domain =
+                      UNIT_BY_ID[unitId]?.domain;
+                    if (domain) {
+                      totals[domain] += quantity;
+                    }
+                    return totals;
+                  },
+                  {
+                    land: 0,
+                    air: 0,
+                    naval: 0,
+                  }
+                );
+                const unitStacks = (
+                  [
+                    ["land", domainTotals.land],
+                    ["air", domainTotals.air],
+                    ["naval", domainTotals.naval],
+                  ] as const
+                ).filter(([, quantity]) => quantity > 0);
+                const showUnitStacks =
+                  Boolean(owner) &&
+                  (mapZoom >= 1.25 || isSelected);
+
                 return (
                   <g
                     key={city.code + "-" + offset}
@@ -3336,6 +3477,50 @@ export default function App() {
                         >
                           ⚓
                         </text>
+                      )}
+
+                    {showUnitStacks &&
+                      unitStacks.map(
+                        ([domain, quantity], index) => {
+                          const count =
+                            unitStacks.length;
+                          const spacing = 15;
+                          const startX =
+                            -((count - 1) * spacing) /
+                            2;
+                          const markerX =
+                            startX + index * spacing;
+                          return (
+                            <g
+                              key={
+                                city.code +
+                                "-" +
+                                domain
+                              }
+                              className={
+                                "city-unit-stack " +
+                                domain
+                              }
+                              transform={`translate(${markerX} 18)`}
+                            >
+                              <circle
+                                r="7.2"
+                                style={{
+                                  stroke:
+                                    ownerColor(owner),
+                                }}
+                              />
+                              <g transform="scale(.52)">
+                                <MapDomainIcon
+                                  domain={domain}
+                                />
+                              </g>
+                              <text y="13">
+                                {quantity}
+                              </text>
+                            </g>
+                          );
+                        }
                       )}
                   </g>
                 );
@@ -3421,16 +3606,15 @@ export default function App() {
                   armyDomains.has("naval");
                 const armyHasAir =
                   armyDomains.has("air");
-                const armyMarker =
-                  armyHasLand && armyHasNaval
-                    ? "⚓"
-                    : armyHasLand && armyHasAir
-                      ? "✈"
-                      : armyHasNaval
-                        ? "◆"
-                        : armyHasAir
-                          ? "✈"
-                          : "▲";
+                const armyMarkerDomain:
+                  | "land"
+                  | "naval"
+                  | "air" =
+                  armyHasNaval
+                    ? "naval"
+                    : armyHasAir
+                      ? "air"
+                      : "land";
                 const armyModeClass =
                   armyHasLand && armyHasNaval
                     ? " convoy"
@@ -3477,10 +3661,15 @@ export default function App() {
                     }}
                   >
                     <circle r="10" />
-                    <text className="field-army-symbol" y="3">
-                      {armyMarker}
-                    </text>
-                    <text className="field-army-total" y="16">
+                    <g transform="scale(.62)">
+                      <MapDomainIcon
+                        domain={armyMarkerDomain}
+                      />
+                    </g>
+                    <text
+                      className="field-army-total"
+                      y="17"
+                    >
                       {total}
                     </text>
                   </g>
