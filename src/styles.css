@@ -2481,3 +2481,38 @@ body {
 .field-army-window {
   background: rgba(12, 14, 12, 0.95);
 }
+
+
+.sea-connection-group {
+  pointer-events: none;
+}
+
+.sea-connection {
+  stroke: rgba(112, 183, 194, 0.34);
+  stroke-width: 1.05;
+  stroke-dasharray: 2.8 2.4;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.7;
+}
+
+.sea-connection-group.active .sea-connection {
+  stroke: #7fd8e2;
+  stroke-width: 2;
+  stroke-dasharray: none;
+  opacity: 0.96;
+  filter: drop-shadow(0 0 2px rgba(87, 191, 205, 0.45));
+}
+
+.city-unit-stack.compact {
+  opacity: 0.9;
+}
+
+.city-unit-stack.compact > circle {
+  stroke-width: 1.4;
+}
+
+.city-unit-stack.compact .map-domain-icon path,
+.city-unit-stack.compact .map-domain-icon rect,
+.city-unit-stack.compact .map-domain-icon circle {
+  opacity: 0.94;
+}
