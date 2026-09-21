@@ -2273,13 +2273,9 @@ export default function App() {
           .filter(
             ({ city, distance }) =>
               distance <= rangeKm &&
-              routeStaysOnSurface(
-                world,
-                sourceCity,
-                city,
-                "land",
-                false,
-                false
+              hasDirectLandConnection(
+                sourceCity.code,
+                city.code
               )
           )
           .sort((a, b) => {
@@ -2360,13 +2356,9 @@ export default function App() {
                 distance <= rangeKm &&
                 enemyDistance + 80 <
                   sourceEnemyDistance &&
-                routeStaysOnSurface(
-                  world,
-                  sourceCity,
-                  city,
-                  "land",
-                  false,
-                  false
+                hasDirectLandConnection(
+                  sourceCity.code,
+                  city.code
                 )
             )
             .sort(
