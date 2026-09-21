@@ -2018,6 +2018,42 @@ export default function App() {
             ?.city
         : undefined);
 
+    const targetPortCandidate =
+      Boolean(targetCity) &&
+      hasPortCode(targetCity!.code);
+    const sourcePortCandidate =
+      Boolean(sourceCity) &&
+      hasPortCode(sourceCity!.code);
+    const portToPortSeaConnection =
+      sourceCity &&
+      targetCity &&
+      sourcePortCandidate &&
+      targetPortCandidate
+        ? seaConnectionBetween(
+            seaConnections,
+            sourceCity.code,
+            targetCity.code
+          )
+        : undefined;
+
+    if (
+      (moveSurface === "naval" ||
+        moveSurface === "naval_transport") &&
+      sourceCity &&
+      targetCity &&
+      sourcePortCandidate &&
+      targetPortCandidate
+    ) {
+      if (!portToPortSeaConnection) {
+        setNotice(
+          `${sourceCity.name} ile ${targetCity.name} arasında doğrudan deniz koridoru yok. Filoyu önce açık denize veya bağlı başka bir limana ilerlet.`
+        );
+        return;
+      }
+      distanceKm =
+        portToPortSeaConnection.distanceKm;
+    }
+
     if (moveSurface === "land") {
       if (!targetCity) {
         setNotice(
@@ -2060,9 +2096,7 @@ export default function App() {
       return;
     }
 
-    const targetIsPort =
-      Boolean(targetCity) &&
-      hasPortCode(targetCity!.code);
+    const targetIsPort = targetPortCandidate;
     const targetIsFriendlyPort =
       targetIsPort &&
       cityOwners[targetCity!.code] === currentPlayer;
@@ -2180,7 +2214,13 @@ export default function App() {
 
     let orderTargetX = targetX;
     let orderTargetY = targetY;
-    if (moveSurface === "land" && targetCity) {
+    if (
+      targetCity &&
+      (moveSurface === "land" ||
+        ((moveSurface === "naval" ||
+          moveSurface === "naval_transport") &&
+          targetIsPort))
+    ) {
       const projectedTarget = project([
         targetCity.lon,
         targetCity.lat,
