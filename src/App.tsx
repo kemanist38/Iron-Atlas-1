@@ -4052,11 +4052,29 @@ export default function App() {
                         previewCity.code
                       )
                     : undefined;
+                const previewSeaConnection =
+                  (moveSurface === "naval" ||
+                    moveSurface ===
+                      "naval_transport") &&
+                  activeSeaSourceCityCode &&
+                  previewCity &&
+                  previewIsPort
+                    ? seaConnectionBetween(
+                        seaConnections,
+                        activeSeaSourceCityCode,
+                        previewCity.code
+                      )
+                    : undefined;
                 const previewEffectiveDistance =
                   moveSurface === "land" &&
                   previewLandConnection
                     ? previewLandConnection.distanceKm
-                    : previewDistance;
+                    : (moveSurface === "naval" ||
+                          moveSurface ===
+                            "naval_transport") &&
+                        previewSeaConnection
+                      ? previewSeaConnection.distanceKm
+                      : previewDistance;
 
                 const previewSurfaceInvalid =
                   Boolean(transportCapacityIssue) ||
@@ -4068,6 +4086,12 @@ export default function App() {
                   (moveSurface === "naval" &&
                     previewIsLand &&
                     !previewFriendlyPort) ||
+                  ((moveSurface === "naval" ||
+                    moveSurface ===
+                      "naval_transport") &&
+                    activeSeaSourceCityCode &&
+                    previewIsPort &&
+                    !previewSeaConnection) ||
                   (moveSurface === "naval_transport" &&
                     previewIsLand &&
                     !previewIsPort) ||
@@ -4134,6 +4158,13 @@ export default function App() {
                               previewIsLand &&
                               !previewFriendlyPort
                             ? "GEMİ KARAYA GİDEMEZ"
+                            : (moveSurface === "naval" ||
+                                  moveSurface ===
+                                    "naval_transport") &&
+                                activeSeaSourceCityCode &&
+                                previewIsPort &&
+                                !previewSeaConnection
+                              ? "DENİZ BAĞLANTISI YOK"
                             : moveSurface ===
                                   "naval_transport" &&
                                 previewIsLand &&
