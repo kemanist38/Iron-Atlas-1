@@ -15,6 +15,7 @@ import {
   type UnitDefinition,
 } from "./unitData";
 import { UNIT_ICON_BY_ID } from "./unitIcons";
+import { MapDomainIcon } from "./mapUnitIcons";
 import {
   STRATEGIES,
   applyStrategy,
@@ -932,6 +933,16 @@ export default function App() {
       ) as Record<string, CountryDefinition>,
     [allCountries]
   );
+  const allCityByCode = useMemo(
+    () =>
+      Object.fromEntries(
+        allCities.map((city) => [
+          city.code,
+          city,
+        ])
+      ) as Record<string, CityNode>,
+    [allCities]
+  );
   const allCitiesForCountry = (code: string) =>
     allCities.filter(
       (city) => city.countryCode === code
@@ -1185,6 +1196,32 @@ export default function App() {
           };
         })()
       : undefined;
+
+  const activeLandSourceCityCode =
+    moveSurface === "land" && activeMoveSource
+      ? activeMoveSource.sourceKind === "city"
+        ? String(activeMoveSource.id)
+        : allCities
+            .map((city) => ({
+              city,
+              distance: haversinePoints(
+                city,
+                activeMoveSource
+              ),
+            }))
+            .sort(
+              (a, b) => a.distance - b.distance
+            )
+            .find(({ distance }) => distance <= 140)
+            ?.city.code ?? null
+      : null;
+
+  const activeLandConnectedCodes =
+    activeLandSourceCityCode
+      ? landConnectionsByCity.get(
+          activeLandSourceCityCode
+        ) ?? new Set<string>()
+      : new Set<string>();
 
   const previewMoveSource =
     activeMoveSource ??
@@ -1924,6 +1961,8 @@ export default function App() {
 
     const routeAllowed =
       routeSurface === "air" ||
+      (routeSurface === "land" &&
+        moveSurface === "land") ||
       routeStaysOnSurface(
         world,
         sourcePoint,
