@@ -2480,23 +2480,34 @@ export default function App() {
         const capacity = effectiveRecruitCapacity(city);
         if (capacity <= 0) return;
 
-        const preferredUnit =
-          city.isCapital && nextTurn % 3 === 0
+        const cityArmy =
+          nextGarrisons[city.code] ?? {};
+        const needsTransport =
+          hasPortCode(city.code) &&
+          (cityArmy.support_ship ?? 0) < 1 &&
+          nextTurn % 2 === 0;
+        const preferredUnit = needsTransport
+          ? UNIT_BY_ID.support_ship
+          : city.isCapital && nextTurn % 3 === 0
             ? UNIT_BY_ID.light_tank
             : UNIT_BY_ID.infantry;
         if (!preferredUnit) return;
 
+        const productionLimit =
+          preferredUnit.id === "support_ship"
+            ? 1
+            : capacity;
         const unitCost = productionCost(preferredUnit, 1);
         const affordable = Math.min(
           Math.floor(stock.gold / Math.max(1, unitCost.gold)),
           Math.floor(stock.steel / Math.max(1, unitCost.steel)),
           unitCost.oil > 0
             ? Math.floor(stock.oil / unitCost.oil)
-            : capacity
+            : productionLimit
         );
         const quantity = Math.max(
           0,
-          Math.min(capacity, affordable)
+          Math.min(productionLimit, affordable)
         );
         if (quantity <= 0) return;
 
@@ -2589,7 +2600,8 @@ export default function App() {
           return;
         }
 
-        const moveUnits: Record<string, number> = {};
+        let moveUnits: Record<string, number> = {};
+        let movementMode: "land" | "sea" = "land";
         if (movingInfantry > 0)
           moveUnits.infantry = movingInfantry;
         if (movingLightTank > 0)
@@ -2653,6 +2665,167 @@ export default function App() {
           });
 
         let target = candidates[0];
+
+        if (
+          !target &&
+          hasPortCode(sourceCity.code)
+        ) {
+          const availableSupportShips =
+            sourceArmy.support_ship ?? 0;
+          const supportUnit =
+            UNIT_BY_ID.support_ship;
+
+          if (
+            availableSupportShips > 0 &&
+            supportUnit
+          ) {
+            const seaRange =
+              movementRangeKm(supportUnit);
+            const seaTargets = seaConnections
+              .filter(
+                (connection) =>
+                  connection.fromCode ===
+                    sourceCity.code ||
+                  connection.toCode ===
+                    sourceCity.code
+              )
+              .map((connection) => {
+                const targetCode =
+                  connection.fromCode ===
+                  sourceCity.code
+                    ? connection.toCode
+                    : connection.fromCode;
+                return {
+                  connection,
+                  city: allCityByCode[targetCode],
+                  distance:
+                    connection.distanceKm,
+                };
+              })
+              .filter(
+                ({ city, distance }) =>
+                  Boolean(city) &&
+                  nextCityOwners[city.code] !==
+                    player &&
+                  distance <= seaRange
+              )
+              .sort((a, b) => {
+                const aOwner =
+                  nextCityOwners[a.city.code] ??
+                  null;
+                const bOwner =
+                  nextCityOwners[b.city.code] ??
+                  null;
+                const aPriority =
+                  aOwner === currentPlayer
+                    ? 0
+                    : a.city.isCapital
+                      ? 1
+                      : aOwner
+                        ? 2
+                        : 3;
+                const bPriority =
+                  bOwner === currentPlayer
+                    ? 0
+                    : b.city.isCapital
+                      ? 1
+                      : bOwner
+                        ? 2
+                        : 3;
+                return (
+                  aPriority - bPriority ||
+                  a.distance - b.distance
+                );
+              });
+
+            const seaTarget = seaTargets[0];
+            if (seaTarget) {
+              const maxCapacity =
+                availableSupportShips *
+                supportUnit.stats.capacity;
+              let capacityLeft = maxCapacity;
+              const seaMoveUnits: Record<
+                string,
+                number
+              > = {};
+
+              const loadUnit = (
+                unitId: string,
+                wanted: number
+              ) => {
+                if (
+                  wanted <= 0 ||
+                  capacityLeft <= 0
+                ) {
+                  return;
+                }
+                const loaded = Math.min(
+                  wanted,
+                  capacityLeft
+                );
+                if (loaded > 0) {
+                  seaMoveUnits[unitId] =
+                    loaded;
+                  capacityLeft -= loaded;
+                }
+              };
+
+              loadUnit(
+                "infantry",
+                movingInfantry
+              );
+              loadUnit(
+                "light_tank",
+                movingLightTank
+              );
+              loadUnit(
+                "heavy_tank",
+                movingHeavyTank
+              );
+
+              const loadedLand = Object.values(
+                seaMoveUnits
+              ).reduce(
+                (sum, quantity) =>
+                  sum + quantity,
+                0
+              );
+
+              if (loadedLand >= 5) {
+                const shipsNeeded = Math.min(
+                  availableSupportShips,
+                  Math.max(
+                    1,
+                    Math.ceil(
+                      loadedLand /
+                        supportUnit.stats.capacity
+                    )
+                  )
+                );
+                seaMoveUnits.support_ship =
+                  shipsNeeded;
+
+                const escort =
+                  Math.min(
+                    1,
+                    sourceArmy.destroyer ?? 0
+                  );
+                if (escort > 0) {
+                  seaMoveUnits.destroyer =
+                    escort;
+                }
+
+                moveUnits = seaMoveUnits;
+                movementMode = "sea";
+                target = {
+                  city: seaTarget.city,
+                  distance:
+                    seaTarget.distance,
+                };
+              }
+            }
+          }
+        }
 
         if (!target) {
           const enemyCities = allCities.filter(
@@ -2776,7 +2949,7 @@ export default function App() {
 
         actions += 1;
         combatLog.push(
-          `${player}: ${sourceCity.name} → ${target.city.name} için birlik emri verdi (${Math.round(
+          `${player}: ${sourceCity.name} → ${target.city.name} için ${movementMode === "sea" ? "deniz çıkarması" : "kara harekâtı"} emri verdi (${Math.round(
             target.distance
           ).toLocaleString("tr-TR")} km).`
         );
