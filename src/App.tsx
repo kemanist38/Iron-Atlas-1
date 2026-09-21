@@ -1997,6 +1997,10 @@ export default function App() {
       );
 
     const aiOrders: MovementOrder[] = [];
+    const aiProduced: Record<
+      string,
+      Record<string, number>
+    > = {};
     const aiPlayers = ["Dogan", "Nova"].filter(
       (player) => Boolean(homeCountries[player])
     );
@@ -2052,10 +2056,28 @@ export default function App() {
             ] ?? 0) + quantity,
         };
 
-        combatLog.push(
-          `${player} · ${city.name}: ${quantity} × ${preferredUnit.name} üretildi.`
-        );
+        aiProduced[player] = {
+          ...(aiProduced[player] ?? {}),
+          [preferredUnit.id]:
+            (aiProduced[player]?.[
+              preferredUnit.id
+            ] ?? 0) + quantity,
+        };
       });
+
+      const producedEntries = Object.entries(
+        aiProduced[player] ?? {}
+      );
+      if (producedEntries.length > 0) {
+        combatLog.push(
+          `${player} üretim: ${producedEntries
+            .map(([unitId, quantity]) => {
+              const unit = UNIT_BY_ID[unitId];
+              return `${quantity} × ${unit?.name ?? unitId}`;
+            })
+            .join(", ")}.`
+        );
+      }
 
       // Stronger cities act first. Each bot can open at most two fronts per turn.
       const sourceCities = [...ownedCities].sort(
