@@ -100,6 +100,7 @@ const AI_COLORS: Record<string, string> = {
   Nova: "#3ab779",
 };
 const DEFAULT_PLAYER = "Atlas";
+const SAVE_KEY = "iron-atlas-save-v1";
 
 function project([lon, lat]: [number, number]) {
   return [
@@ -781,6 +782,185 @@ export default function App() {
     moved: boolean;
   } | null>(null);
   const orderIdRef = useRef(1);
+  const saveReadyRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) {
+        queueMicrotask(() => {
+          saveReadyRef.current = true;
+        });
+        return;
+      }
+
+      const save = JSON.parse(raw);
+
+      if (save.commander) setCommander(save.commander);
+      if (save.roomName) setRoomName(save.roomName);
+      if (typeof save.startingMoney === "number")
+        setStartingMoney(save.startingMoney);
+      if (typeof save.turnMinutes === "number")
+        setTurnMinutes(save.turnMinutes);
+      if (typeof save.maxPlayers === "number")
+        setMaxPlayers(save.maxPlayers);
+      if (save.selectedStrategy)
+        setSelectedStrategy(save.selectedStrategy);
+      if (save.playerColor)
+        setPlayerColor(save.playerColor);
+      if (typeof save.victoryHoldTurns === "number")
+        setVictoryHoldTurns(save.victoryHoldTurns);
+      if (typeof save.maxGameTurns === "number")
+        setMaxGameTurns(save.maxGameTurns);
+      if (save.selectedHomeland !== undefined)
+        setSelectedHomeland(save.selectedHomeland);
+      if (save.resources) setResources(save.resources);
+      if (save.aiResources)
+        setAiResources(save.aiResources);
+      if (typeof save.turn === "number")
+        setTurn(save.turn);
+      if (save.countryOwners)
+        setCountryOwners(save.countryOwners);
+      if (save.cityOwners)
+        setCityOwners(save.cityOwners);
+      if (save.garrisons)
+        setGarrisons(save.garrisons);
+      if (Array.isArray(save.productionQueue))
+        setProductionQueue(save.productionQueue);
+      if (Array.isArray(save.movementQueue))
+        setMovementQueue(save.movementQueue);
+      if (Array.isArray(save.fieldArmies))
+        setFieldArmies(save.fieldArmies);
+      if (save.capitalHolds)
+        setCapitalHolds(save.capitalHolds);
+      if (save.homeCountries)
+        setHomeCountries(save.homeCountries);
+      if (save.cityStructures)
+        setCityStructures(save.cityStructures);
+      if (save.productionUsedThisTurn) {
+        productionUsedRef.current =
+          save.productionUsedThisTurn;
+        setProductionUsedThisTurn(
+          save.productionUsedThisTurn
+        );
+      }
+      if (save.selectedCountry)
+        setSelectedCountry(save.selectedCountry);
+      if (save.selectedCityCode !== undefined)
+        setSelectedCityCode(save.selectedCityCode);
+      if (save.cityWindowPosition)
+        setCityWindowPosition(save.cityWindowPosition);
+      if (Array.isArray(save.lastTurnEvents))
+        setLastTurnEvents(save.lastTurnEvents);
+      if (typeof save.mapZoom === "number")
+        setMapZoom(save.mapZoom);
+      if (save.mapCenter)
+        setMapCenter(save.mapCenter);
+      if (save.winner !== undefined)
+        setWinner(save.winner);
+
+      if (save.screen === "game") {
+        setScreen("game");
+        setNotice(
+          "Kayıtlı oyun geri yüklendi. Önceki oyun verileri korunuyor."
+        );
+      }
+
+      const maxOrderId = Math.max(
+        0,
+        ...(save.movementQueue ?? []).map(
+          (order: MovementOrder) => order.id
+        ),
+        ...(save.fieldArmies ?? []).map(
+          (army: FieldArmy) => army.id
+        )
+      );
+      orderIdRef.current = maxOrderId + 1;
+    } catch {
+      localStorage.removeItem(SAVE_KEY);
+    } finally {
+      queueMicrotask(() => {
+        saveReadyRef.current = true;
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!saveReadyRef.current) return;
+
+    const save = {
+      version: 1,
+      savedAt: Date.now(),
+      screen,
+      commander,
+      roomName,
+      startingMoney,
+      turnMinutes,
+      maxPlayers,
+      selectedStrategy,
+      playerColor,
+      victoryHoldTurns,
+      maxGameTurns,
+      selectedHomeland,
+      resources,
+      aiResources,
+      turn,
+      countryOwners,
+      cityOwners,
+      garrisons,
+      productionQueue,
+      movementQueue,
+      fieldArmies,
+      capitalHolds,
+      homeCountries,
+      winner,
+      selectedCountry,
+      selectedCityCode,
+      productionUsedThisTurn,
+      cityStructures,
+      cityWindowPosition,
+      lastTurnEvents,
+      mapZoom,
+      mapCenter,
+    };
+
+    localStorage.setItem(
+      SAVE_KEY,
+      JSON.stringify(save)
+    );
+  }, [
+    screen,
+    commander,
+    roomName,
+    startingMoney,
+    turnMinutes,
+    maxPlayers,
+    selectedStrategy,
+    playerColor,
+    victoryHoldTurns,
+    maxGameTurns,
+    selectedHomeland,
+    resources,
+    aiResources,
+    turn,
+    countryOwners,
+    cityOwners,
+    garrisons,
+    productionQueue,
+    movementQueue,
+    fieldArmies,
+    capitalHolds,
+    homeCountries,
+    winner,
+    selectedCountry,
+    selectedCityCode,
+    productionUsedThisTurn,
+    cityStructures,
+    cityWindowPosition,
+    lastTurnEvents,
+    mapZoom,
+    mapCenter,
+  ]);
 
   useEffect(() => {
     fetch(WORLD_GEOJSON_URL)
