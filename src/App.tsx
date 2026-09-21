@@ -37,7 +37,6 @@ import {
 } from "./cityStructures";
 import {
   buildLandConnections,
-  connectedCityCodes,
   connectionBetween,
   connectionRelation,
   type LandConnection,
@@ -966,20 +965,6 @@ export default function App() {
     [allCities, world]
   );
 
-  const landConnectionsByCity = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    allCities.forEach((city) => {
-      map.set(
-        city.code,
-        connectedCityCodes(
-          landConnections,
-          city.code
-        )
-      );
-    });
-    return map;
-  }, [allCities, landConnections]);
-
   const hasDirectLandConnection = (
     fromCode: string,
     toCode: string
@@ -1215,13 +1200,6 @@ export default function App() {
             .find(({ distance }) => distance <= 140)
             ?.city.code ?? null
       : null;
-
-  const activeLandConnectedCodes =
-    activeLandSourceCityCode
-      ? landConnectionsByCity.get(
-          activeLandSourceCityCode
-        ) ?? new Set<string>()
-      : new Set<string>();
 
   const previewMoveSource =
     activeMoveSource ??
@@ -3215,10 +3193,10 @@ export default function App() {
                       fillOpacity:
                         mode === "game"
                           ? strategicOwner
-                            ? 0.22
-                            : 0.025
+                            ? 0.4
+                            : 0.02
                           : isSelected
-                            ? 0.24
+                            ? 0.44
                             : 0,
                     }}
                     onClick={(event) => {
