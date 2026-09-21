@@ -2189,3 +2189,258 @@ body {
 .game-outcome-card h1 {
   color: #d7c64d;
 }
+
+
+/* =========================================================
+   ATWAR NETWORK + DARK MAP PASS
+   ========================================================= */
+
+.map-stage,
+.game-map-stage {
+  background: #24484a;
+}
+
+.ocean-base {
+  fill: #24484a;
+}
+
+.terrain-base {
+  filter:
+    brightness(0.7)
+    contrast(1.08)
+    saturate(0.86)
+    sepia(0.04);
+}
+
+.ocean-color-layer {
+  fill: #315f61;
+  opacity: 0.34;
+  mix-blend-mode: soft-light;
+}
+
+.country-shape {
+  stroke: rgba(228, 225, 204, 0.34);
+  stroke-width: 0.72;
+}
+
+.country-shape.supported:hover {
+  stroke: #e0d8a2;
+  stroke-width: 1.15;
+}
+
+.country-shape.selected {
+  stroke: #f0df96;
+  stroke-width: 1.6;
+}
+
+.land-connection-group {
+  pointer-events: none;
+}
+
+.land-connection {
+  stroke: rgba(196, 202, 164, 0.34);
+  stroke-width: 1.05;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.72;
+}
+
+.land-connection-group.neutral .land-connection {
+  stroke: rgba(184, 191, 160, 0.28);
+}
+
+.land-connection-group.friendly .land-connection {
+  opacity: 0.72;
+}
+
+.land-connection-group.frontline .land-connection {
+  stroke: #b75f4e;
+  stroke-width: 1.35;
+  stroke-dasharray: 3.5 2.5;
+  opacity: 0.82;
+}
+
+.land-connection-group.attack .land-connection {
+  stroke: #c7863f;
+  stroke-width: 1.55;
+  stroke-dasharray: 4 2.5;
+  opacity: 0.92;
+}
+
+.land-connection-group.active .land-connection {
+  stroke: #e4cb36 !important;
+  stroke-width: 2.2;
+  stroke-dasharray: none;
+  opacity: 0.96;
+  filter: drop-shadow(0 0 2px rgba(228, 203, 54, 0.45));
+}
+
+.connection-blockade circle {
+  fill: #541a16;
+  stroke: #dc765f;
+  stroke-width: 1.2;
+}
+
+.connection-blockade path {
+  fill: none;
+  stroke: #f3bf99;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+}
+
+.city-unit-stack {
+  pointer-events: none;
+}
+
+.city-unit-stack > circle {
+  fill: rgba(22, 27, 22, 0.98);
+  stroke-width: 1.7;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
+}
+
+.map-domain-icon path,
+.map-domain-icon rect,
+.map-domain-icon circle {
+  fill: #f3f0d9;
+  stroke: #131613;
+  stroke-width: 0.5;
+  paint-order: stroke fill;
+}
+
+.city-unit-stack.land .map-domain-icon path,
+.city-unit-stack.land .map-domain-icon circle {
+  fill: #efe6c5;
+}
+
+.city-unit-stack.air .map-domain-icon path {
+  fill: #d9e8ea;
+}
+
+.city-unit-stack.naval .map-domain-icon path,
+.city-unit-stack.naval .map-domain-icon rect {
+  fill: #c9e2e5;
+}
+
+.city-unit-stack > text {
+  fill: #fff3bf;
+  stroke: #151712;
+  stroke-width: 1.1px;
+  paint-order: stroke fill;
+  font-size: 6.5px;
+  font-weight: 900;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.field-army-marker .map-domain-icon path,
+.field-army-marker .map-domain-icon rect,
+.field-army-marker .map-domain-icon circle {
+  fill: #f3efd4;
+  stroke: #10130f;
+  stroke-width: 0.55;
+}
+
+.field-army-marker circle {
+  fill: rgba(19, 24, 19, 0.97);
+  stroke-width: 1.8;
+}
+
+.field-army-total {
+  fill: #fff0a9;
+  stroke: #141711;
+  stroke-width: 1.1px;
+  paint-order: stroke fill;
+  text-anchor: middle;
+  font-size: 7px;
+  font-weight: 900;
+}
+
+.city-node,
+.capital-ring {
+  fill: rgba(20, 25, 20, 0.96);
+}
+
+.capacity-number {
+  fill: #f2e9b8;
+}
+
+.capital-star {
+  fill: #f4edd2;
+}
+
+.panel {
+  border-color: #343b30;
+  background: rgba(10, 13, 10, 0.95);
+}
+
+.game-hud,
+.map-topbar,
+.setup-header,
+.top-brand {
+  background: #090d0a;
+  border-color: #30382e;
+}
+
+.city-window > header {
+  background:
+    linear-gradient(
+      90deg,
+      #64130f,
+      #47110e 62%,
+      #26110f
+    );
+  border-bottom-color: #6d2a22;
+}
+
+.city-tabs {
+  background: #0c100d;
+}
+
+.city-tabs button {
+  background: #171c16;
+  border-color: #30382d;
+  color: #9aa392;
+}
+
+.city-tabs button.active {
+  background: #6a6215;
+  border-color: #aaa12f;
+  color: #fff5bf;
+}
+
+.unit-row,
+.move-row,
+.structure-row {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(19, 24, 19, 0.98),
+      rgba(10, 13, 10, 0.98)
+    );
+  border-color: #2b3329;
+}
+
+.country-intel,
+.commander-status,
+.turn-report,
+.field-army-window {
+  background: rgba(8, 11, 9, 0.94);
+  border-color: #343d31;
+}
+
+.map-controls {
+  background: rgba(8, 12, 10, 0.92);
+  border-color: #354236;
+}
+
+.map-controls button {
+  background: #151d18;
+  border-color: #405046;
+}
+
+.movement-range-circle {
+  fill: rgba(127, 167, 63, 0.1);
+  stroke: rgba(185, 210, 79, 0.72);
+  stroke-width: 1.15;
+  stroke-dasharray: 4 3;
+}
