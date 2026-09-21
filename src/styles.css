@@ -1765,3 +1765,427 @@ button:disabled {
     display: none;
   }
 }
+
+
+/* =========================================================
+   ATWAR-INSPIRED GLOBAL VISUAL PASS
+   Muted olive command UI + teal ocean + softer terrain
+   ========================================================= */
+
+:root {
+  background: #141912;
+  color: #e8e6d4;
+}
+
+html,
+body,
+#root,
+.app {
+  background: #141912;
+}
+
+body {
+  color: #e8e6d4;
+}
+
+.panel {
+  border-color: #4a513f;
+  background: rgba(22, 27, 19, 0.95);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+}
+
+.kicker {
+  color: #b9b98f;
+}
+
+.primary-button {
+  border-color: #b7a934;
+  background: linear-gradient(#9f951f, #66670b);
+  color: #fffbd8;
+}
+
+.secondary-button {
+  border-color: #4c5842;
+  background: #22291f;
+  color: #d5dcc7;
+}
+
+.top-brand,
+.setup-header,
+.map-topbar,
+.game-hud {
+  border-color: #47503d;
+  background: #171c15;
+}
+
+.top-brand span,
+.map-topbar span,
+.hud-brand span,
+.hud-chip span,
+.hud-strategy span {
+  color: #8c9a81;
+}
+
+.setup-screen {
+  background:
+    linear-gradient(180deg, #151a14 0, #1a2118 130px, #2b3020 130px);
+}
+
+.setup-main,
+.setup-map-card,
+.lobby-hero,
+.lobby-modes article {
+  border-color: rgba(84, 95, 71, 0.68);
+  background: rgba(19, 24, 17, 0.94);
+}
+
+.setup-tabs {
+  border-color: #47513f;
+  background: #171c15;
+}
+
+.setup-tabs button {
+  color: #88917f;
+}
+
+.setup-tabs button.active {
+  border-bottom-color: #b8aa32;
+  background: #353a28;
+  color: #efe9c7;
+}
+
+.settings-grid input,
+.settings-grid select,
+.setup-map-card input {
+  border-color: #515b48;
+  background: #20261d;
+  color: #e4e6d9;
+}
+
+.map-stage,
+.game-map-stage {
+  background: #456c72;
+}
+
+.ocean-base {
+  fill: #527980;
+}
+
+.terrain-base {
+  opacity: 1;
+  pointer-events: none;
+  filter:
+    brightness(0.82)
+    contrast(0.97)
+    saturate(0.74)
+    sepia(0.06);
+}
+
+.ocean-color-layer {
+  fill: #6f9aa0;
+  opacity: 0.26;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+.country-shape {
+  stroke: rgba(226, 228, 210, 0.28);
+  stroke-width: 0.62;
+}
+
+.country-shape.supported:hover {
+  stroke: #d8d3a0;
+  stroke-width: 1.05;
+}
+
+.country-shape.selected {
+  stroke: #eee2a2;
+  stroke-width: 1.45;
+  filter: drop-shadow(0 0 2px rgba(238, 226, 162, 0.24));
+}
+
+.map-controls {
+  border-color: #52604b;
+  background: rgba(24, 30, 21, 0.9);
+}
+
+.map-controls button {
+  border-color: #5f6b55;
+  background: #252c22;
+  color: #e5e7d7;
+}
+
+.map-controls span {
+  color: #a3ae97;
+}
+
+.purchase-panel {
+  border-color: #5d5032;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(38, 30, 20, 0.97),
+      rgba(19, 22, 16, 0.98)
+    );
+}
+
+.purchase-stats span,
+.purchase-price span,
+.empty-help {
+  color: #a9ac97;
+}
+
+.purchase-price {
+  border-color: rgba(191, 170, 73, 0.24);
+  background: rgba(27, 28, 18, 0.72);
+}
+
+.purchase-price b,
+.purchase-city-list b {
+  color: #ddc95d;
+}
+
+.purchase-city-list {
+  border-color: rgba(190, 171, 86, 0.18);
+  background: rgba(20, 23, 17, 0.72);
+}
+
+.game-hud {
+  border-bottom-color: #46503d;
+}
+
+.game-hud > div,
+.game-hud > button {
+  border-right-color: #3c4637;
+}
+
+.end-turn-button {
+  background: #a89b20;
+  color: #181a10;
+}
+
+.city-node,
+.capital-ring {
+  fill: rgba(29, 34, 27, 0.95);
+  stroke-width: 1.8;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+}
+
+.city-marker.selected .city-node,
+.city-marker.selected .capital-ring {
+  stroke: #efe4a6 !important;
+  stroke-width: 2.5;
+}
+
+.capacity-number {
+  fill: #f0ecd0;
+  stroke: #181b15;
+  stroke-width: 1.1px;
+}
+
+.capital-star {
+  fill: #f0edda;
+  stroke: #171a14;
+  stroke-width: 0.7px;
+}
+
+.port-marker {
+  fill: #d9e5df;
+  stroke: #19221f;
+}
+
+.route {
+  stroke: #e5cf55;
+}
+
+.route.attack {
+  stroke: #d96e5f;
+}
+
+.movement-range-circle {
+  fill: rgba(82, 168, 80, 0.12);
+  stroke: rgba(118, 202, 113, 0.88);
+  stroke-width: 1.35;
+  filter: none;
+}
+
+.city-marker.reachable-target .city-node,
+.city-marker.reachable-target .capital-ring {
+  fill: rgba(70, 119, 63, 0.96);
+  stroke: #a6d59e !important;
+  filter: drop-shadow(0 0 3px rgba(118, 197, 110, 0.45));
+}
+
+.city-marker.multi-turn-target .city-node,
+.city-marker.multi-turn-target .capital-ring {
+  fill: rgba(125, 110, 48, 0.95);
+  stroke: #d9c76a !important;
+  filter: drop-shadow(0 0 2px rgba(208, 187, 87, 0.35));
+}
+
+.country-intel,
+.commander-status,
+.turn-report,
+.city-window,
+.field-army-window {
+  border-color: #4d5744;
+  background: rgba(21, 26, 19, 0.94);
+}
+
+.country-intel span,
+.commander-status-row > div:nth-child(2) span,
+.commander-stats span,
+.commander-stats small,
+.city-meta,
+.structure-info span {
+  color: #8d9886;
+}
+
+.country-intel b,
+.commander-status-row > div:nth-child(2) b,
+.commander-stats b,
+.structure-info b {
+  color: #e2e3d4;
+}
+
+.city-window > header {
+  background:
+    linear-gradient(
+      90deg,
+      #55471c,
+      #34301c 68%,
+      #24261b
+    );
+}
+
+.city-window > header button {
+  border-color: #6a5f32;
+  background: #544a25;
+}
+
+.city-tabs {
+  background: #171b15;
+}
+
+.city-tabs button {
+  border-color: #41493c;
+  background: #252a22;
+  color: #9ea799;
+}
+
+.city-tabs button.active {
+  border-color: #a89c2b;
+  background: #5f5a19;
+  color: #f0ebc9;
+}
+
+.unit-row,
+.move-row,
+.structure-row {
+  border-color: #333b31;
+  background: linear-gradient(90deg, #222820, #181c17);
+}
+
+.unit-thumb,
+.structure-icon {
+  background: #131713;
+}
+
+.structure-section {
+  border-top-color: rgba(169, 157, 33, 0.22);
+}
+
+.structure-section-title {
+  background: rgba(122, 111, 21, 0.1);
+}
+
+.structure-section-title b,
+.structure-icon {
+  color: #c9bd57;
+}
+
+.structure-info small {
+  color: #bca85c;
+}
+
+.structure-row > button,
+.unit-row > button,
+.move-row > button {
+  border-color: #505844;
+  background: #343a2f;
+  color: #e4e5d8;
+}
+
+.drag-mode-status.active {
+  border-color: #9d922a;
+  background: rgba(83, 78, 23, 0.34);
+  color: #ece3a0;
+}
+
+.target-hint {
+  border-color: #697756;
+  background: rgba(34, 43, 29, 0.95);
+  color: #d7e7cb;
+}
+
+.draggable-army-token circle {
+  fill: rgba(36, 37, 24, 0.98);
+  stroke: #d9c953;
+}
+
+.draggable-army-token path {
+  fill: #d9c953;
+}
+
+.field-army-marker.land-group circle {
+  stroke: #8dc08c;
+}
+
+.field-army-marker.fleet circle {
+  stroke: #82b0c4;
+}
+
+.field-army-marker.convoy circle {
+  stroke: #8ebbc1;
+}
+
+.field-army-marker.air-group circle,
+.field-army-marker.airlift circle {
+  stroke: #aeb7cf;
+}
+
+.turn-report {
+  border-color: rgba(172, 154, 58, 0.36);
+  background: rgba(20, 25, 18, 0.94);
+}
+
+.turn-report-title {
+  color: #c7b84b;
+}
+
+.turn-report-event {
+  border-top-color: rgba(131, 143, 118, 0.16);
+  color: #cbd0c2;
+}
+
+.commander-status-title {
+  color: #c6b94d;
+}
+
+.game-outcome-overlay {
+  background: rgba(17, 22, 16, 0.72);
+}
+
+.game-outcome-card {
+  border-color: rgba(196, 176, 65, 0.46);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(31, 36, 26, 0.98),
+      rgba(18, 22, 17, 0.98)
+    );
+}
+
+.game-outcome-card h1 {
+  color: #d7c64d;
+}
