@@ -3719,9 +3719,11 @@ export default function App() {
                     ["naval", domainTotals.naval],
                   ] as const
                 ).filter(([, quantity]) => quantity > 0);
+                const compactUnitStacks =
+                  mapZoom < 1.65 && !isSelected;
                 const showUnitStacks =
                   Boolean(owner) &&
-                  (mapZoom >= 1.25 || isSelected);
+                  (mapZoom >= 1.1 || isSelected);
 
                 return (
                   <g
@@ -3805,25 +3807,40 @@ export default function App() {
                               }
                               className={
                                 "city-unit-stack " +
-                                domain
+                                domain +
+                                (compactUnitStacks
+                                  ? " compact"
+                                  : "")
                               }
                               transform={`translate(${markerX} 18)`}
                             >
                               <circle
-                                r="7.2"
+                                r={
+                                  compactUnitStacks
+                                    ? 5.8
+                                    : 7.2
+                                }
                                 style={{
                                   stroke:
                                     ownerColor(owner),
                                 }}
                               />
-                              <g transform="scale(.52)">
+                              <g
+                                transform={
+                                  compactUnitStacks
+                                    ? "scale(.42)"
+                                    : "scale(.52)"
+                                }
+                              >
                                 <MapDomainIcon
                                   domain={domain}
                                 />
                               </g>
-                              <text y="13">
-                                {quantity}
-                              </text>
+                              {!compactUnitStacks && (
+                                <text y="13">
+                                  {quantity}
+                                </text>
+                              )}
                             </g>
                           );
                         }
