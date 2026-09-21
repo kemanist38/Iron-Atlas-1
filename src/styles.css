@@ -702,7 +702,7 @@ button:disabled {
 
 .game-map-controls {
   right: 14px;
-  bottom: 42px;
+  bottom: 116px;
 }
 
 .city-marker {
@@ -2515,4 +2515,42 @@ body {
 .city-unit-stack.compact .map-domain-icon rect,
 .city-unit-stack.compact .map-domain-icon circle {
   opacity: 0.94;
+}
+
+
+.world-minimap {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  z-index: 39;
+  width: 190px;
+  height: 96px;
+  padding: 4px;
+  border-color: #3f4a3a;
+  background: rgba(8, 11, 9, 0.95);
+}
+
+.world-minimap svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+}
+
+.minimap-ocean {
+  fill: #1e3631;
+}
+
+.minimap-country {
+  stroke: rgba(222, 220, 198, 0.26);
+  stroke-width: 0.7;
+  vector-effect: non-scaling-stroke;
+}
+
+.minimap-viewport {
+  fill: rgba(255, 226, 94, 0.08);
+  stroke: #e7d153;
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
 }
