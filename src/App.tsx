@@ -1649,6 +1649,34 @@ export default function App() {
     );
   }
 
+  function handleMiniMapPointer(
+    event: ReactPointerEvent<SVGSVGElement>
+  ) {
+    event.stopPropagation();
+    const rect =
+      event.currentTarget.getBoundingClientRect();
+    const x =
+      ((event.clientX - rect.left) /
+        Math.max(1, rect.width)) *
+      WORLD_WIDTH;
+    const y =
+      ((event.clientY - rect.top) /
+        Math.max(1, rect.height)) *
+      WORLD_HEIGHT;
+    const halfHeight = mapViewHeight / 2;
+
+    setMapCenter({
+      x: wrapWorldX(x),
+      y: Math.max(
+        halfHeight,
+        Math.min(
+          WORLD_HEIGHT - halfHeight,
+          y
+        )
+      ),
+    });
+  }
+
   function effectiveUnit(unit: UnitDefinition) {
     return applyStrategy(unit, selectedStrategy);
   }
@@ -4934,6 +4962,81 @@ export default function App() {
             −
           </button>
           <button onClick={resetMap}>⟳</button>
+        </div>
+
+        <div className="world-minimap panel">
+          <svg
+            viewBox={`0 0 ${WORLD_WIDTH} ${WORLD_HEIGHT}`}
+            onPointerDown={handleMiniMapPointer}
+          >
+            <rect
+              x="0"
+              y="0"
+              width={WORLD_WIDTH}
+              height={WORLD_HEIGHT}
+              className="minimap-ocean"
+            />
+            {world.map((feature, index) => {
+              const code =
+                featureCountryCode(feature);
+              const owner =
+                countryOwners[code] ?? null;
+              return (
+                <path
+                  key={
+                    "minimap-country-" +
+                    (feature.id ?? index)
+                  }
+                  d={geometryToPath(
+                    feature.geometry
+                  )}
+                  className="minimap-country"
+                  style={{
+                    fill: owner
+                      ? ownerColor(owner)
+                      : "#3b4434",
+                  }}
+                />
+              );
+            })}
+            {(() => {
+              const rawX =
+                mapCenter.x - mapViewWidth / 2;
+              const x = wrapWorldX(rawX);
+              const firstWidth = Math.min(
+                mapViewWidth,
+                WORLD_WIDTH - x
+              );
+              const overflow =
+                mapViewWidth - firstWidth;
+              return (
+                <>
+                  <rect
+                    x={x}
+                    y={
+                      mapCenter.y -
+                      mapViewHeight / 2
+                    }
+                    width={firstWidth}
+                    height={mapViewHeight}
+                    className="minimap-viewport"
+                  />
+                  {overflow > 0 && (
+                    <rect
+                      x="0"
+                      y={
+                        mapCenter.y -
+                        mapViewHeight / 2
+                      }
+                      width={overflow}
+                      height={mapViewHeight}
+                      className="minimap-viewport"
+                    />
+                  )}
+                </>
+              );
+            })()}
+          </svg>
         </div>
 
         <aside className="country-intel panel">
