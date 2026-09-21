@@ -1947,6 +1947,56 @@ export default function App() {
     setCityPanelOpen(true);
   }
 
+  function handleCityUnitStackClick(
+    event: ReactPointerEvent<SVGGElement>,
+    city: CityNode,
+    domain: "land" | "air" | "naval"
+  ) {
+    event.stopPropagation();
+
+    if (moveSourceCode || moveSourceArmyId) {
+      setNotice(
+        "Önce aktif hareket emrini tamamla veya iptal et."
+      );
+      return;
+    }
+
+    setSelectedFieldArmyId(null);
+    setFieldArmyPanelOpen(false);
+    setSelectedCountry(city.countryCode);
+    setSelectedCityCode(city.code);
+    setCityPanelOpen(true);
+
+    const owner = cityOwners[city.code] ?? null;
+    if (owner !== currentPlayer) {
+      setCityTab("production");
+      setMoveDraft({});
+      setNotice(
+        `${city.name}: ${domain === "land" ? "kara" : domain === "air" ? "hava" : "deniz"} birliği istihbaratı görüntüleniyor.`
+      );
+      return;
+    }
+
+    const units = garrisons[city.code] ?? {};
+    const draft: Record<string, number> = {};
+    Object.entries(units).forEach(
+      ([unitId, quantity]) => {
+        if (
+          quantity > 0 &&
+          UNIT_BY_ID[unitId]?.domain === domain
+        ) {
+          draft[unitId] = quantity;
+        }
+      }
+    );
+
+    setCityTab("movement");
+    setMoveDraft(draft);
+    setNotice(
+      `${city.name}: ${domain === "land" ? "kara" : domain === "air" ? "hava" : "deniz"} birlikleri seçildi. Haritadaki sarı birlik işaretini sürükleyebilirsin.`
+    );
+  }
+
   function issueFreeMovement(targetXRaw: number, targetY: number) {
     const sourceCity = moveSourceCode
       ? allCities.find((city) => city.code === moveSourceCode)
@@ -3838,10 +3888,31 @@ export default function App() {
                                 domain +
                                 (compactUnitStacks
                                   ? " compact"
+                                  : "") +
+                                (owner === currentPlayer
+                                  ? " controllable"
                                   : "")
                               }
                               transform={`translate(${markerX} 18)`}
+                              onPointerDown={(event) =>
+                                event.stopPropagation()
+                              }
+                              onClick={(event) =>
+                                handleCityUnitStackClick(
+                                  event,
+                                  city,
+                                  domain
+                                )
+                              }
                             >
+                              <title>
+                                {domain === "land"
+                                  ? "Kara"
+                                  : domain === "air"
+                                    ? "Hava"
+                                    : "Deniz"}{" "}
+                                birlikleri: {quantity}
+                              </title>
                               <circle
                                 r={
                                   compactUnitStacks
