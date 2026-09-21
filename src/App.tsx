@@ -3071,10 +3071,10 @@ export default function App() {
                       fillOpacity:
                         mode === "game"
                           ? strategicOwner
-                            ? 0.32
-                            : 0.04
+                            ? 0.22
+                            : 0.025
                           : isSelected
-                            ? 0.32
+                            ? 0.24
                             : 0,
                     }}
                     onClick={(event) => {
