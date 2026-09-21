@@ -2665,6 +2665,11 @@ export default function App() {
                   inTargetMode &&
                   !isSameSourceCity &&
                   targetDistance > activeMoveRangeKm;
+                const compactMarker =
+                  mapZoom < 1.65 &&
+                  !isSelected &&
+                  !isReachableTarget &&
+                  !isMultiTurnTarget;
                 return (
                   <g
                     key={city.code + "-" + offset}
@@ -2672,7 +2677,8 @@ export default function App() {
                       "city-marker " +
                       (isSelected ? "selected " : "") +
                       (isReachableTarget ? "reachable-target " : "") +
-                      (isMultiTurnTarget ? "multi-turn-target " : "")
+                      (isMultiTurnTarget ? "multi-turn-target " : "") +
+                      (compactMarker ? "compact " : "")
                     }
                     transform={`translate(${x} ${y}) scale(${1 / mapZoom})`}
                     onClick={(event) => {
@@ -2681,10 +2687,17 @@ export default function App() {
                       handleCityClick(city);
                     }}
                   >
+                    <title>
+                      {city.name} · Kapasite{" "}
+                      {effectiveRecruitCapacity(city)}
+                      {hasPortCode(city.code)
+                        ? " · Liman"
+                        : ""}
+                    </title>
                     {city.isCapital ? (
                       <>
                         <circle
-                          r="7"
+                          r={compactMarker ? 5.2 : 7}
                           className="capital-ring"
                           style={{
                             stroke: ownerColor(owner),
@@ -2696,21 +2709,28 @@ export default function App() {
                       </>
                     ) : (
                       <circle
-                        r="5.4"
+                        r={compactMarker ? 3.2 : 5.4}
                         className="city-node"
                         style={{
                           stroke: ownerColor(owner),
                         }}
                       />
                     )}
-                    <text className="capacity-number">
-                      {city.recruitCapacity}
-                    </text>
-                    {hasPortCode(city.code) && (
-                      <text className="port-marker" x="8" y="8">
-                        ⚓
+                    {!compactMarker && (
+                      <text className="capacity-number">
+                        {effectiveRecruitCapacity(city)}
                       </text>
                     )}
+                    {!compactMarker &&
+                      hasPortCode(city.code) && (
+                        <text
+                          className="port-marker"
+                          x="8"
+                          y="8"
+                        >
+                          ⚓
+                        </text>
+                      )}
                   </g>
                 );
               })}
