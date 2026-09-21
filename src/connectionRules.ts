@@ -34,6 +34,41 @@ export function buildLandConnections(
     });
   };
 
+  const skipsIntermediateCity = (
+    from: CityNode,
+    to: CityNode,
+    directDistance: number
+  ) =>
+    cities.some((middle) => {
+      if (
+        middle.code === from.code ||
+        middle.code === to.code
+      ) {
+        return false;
+      }
+
+      const firstLeg = distanceBetween(from, middle);
+      if (
+        firstLeg < 70 ||
+        firstLeg > directDistance * 0.92
+      ) {
+        return false;
+      }
+
+      const secondLeg = distanceBetween(middle, to);
+      if (
+        secondLeg < 70 ||
+        secondLeg > directDistance * 0.92
+      ) {
+        return false;
+      }
+
+      return (
+        firstLeg + secondLeg <=
+        directDistance * 1.1
+      );
+    });
+
   cities.forEach((city) => {
     const nearby = cities
       .filter((candidate) => candidate.code !== city.code)
@@ -49,6 +84,11 @@ export function buildLandConnections(
         ({ city: candidate, distance }) =>
           candidate.countryCode === city.countryCode &&
           distance <= 950 &&
+          !skipsIntermediateCity(
+            city,
+            candidate,
+            distance
+          ) &&
           routeAllowed(city, candidate)
       )
       .slice(0, 4);
@@ -62,6 +102,11 @@ export function buildLandConnections(
         ({ city: candidate, distance }) =>
           candidate.countryCode !== city.countryCode &&
           distance <= 680 &&
+          !skipsIntermediateCity(
+            city,
+            candidate,
+            distance
+          ) &&
           routeAllowed(city, candidate)
       )
       .slice(0, 3);
@@ -80,6 +125,11 @@ export function buildLandConnections(
       const fallback = nearby.find(
         ({ distance, city: candidate }) =>
           distance <= 1100 &&
+          !skipsIntermediateCity(
+            city,
+            candidate,
+            distance
+          ) &&
           routeAllowed(city, candidate)
       );
       if (fallback) {
