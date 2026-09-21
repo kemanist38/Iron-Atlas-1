@@ -474,13 +474,20 @@ button:disabled {
 }
 
 .ocean-base {
-  fill: #173c3d;
+  fill: #173f49;
 }
 
 .terrain-base {
   opacity: 1;
   pointer-events: none;
-  filter: brightness(0.62) contrast(1.1) saturate(0.76);
+  filter: brightness(0.69) contrast(1.07) saturate(0.84);
+}
+
+.ocean-color-layer {
+  fill: #155b6b;
+  opacity: 0.38;
+  mix-blend-mode: screen;
+  pointer-events: none;
 }
 
 .country-shape {
