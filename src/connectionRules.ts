@@ -17,6 +17,116 @@ export function buildLandConnections(
   routeAllowed: (a: CityNode, b: CityNode) => boolean
 ): LandConnection[] {
   const connections = new Map<string, LandConnection>();
+  const cityByCode = new Map(
+    cities.map((city) => [city.code, city])
+  );
+
+  const normalizeLon = (
+    lon: number,
+    reference: number
+  ) => {
+    let value = lon;
+    while (value - reference > 180) value -= 360;
+    while (value - reference < -180) value += 360;
+    return value;
+  };
+
+  const orientation = (
+    ax: number,
+    ay: number,
+    bx: number,
+    by: number,
+    cx: number,
+    cy: number
+  ) =>
+    (bx - ax) * (cy - ay) -
+    (by - ay) * (cx - ax);
+
+  const segmentsCross = (
+    a: CityNode,
+    b: CityNode,
+    c: CityNode,
+    d: CityNode
+  ) => {
+    const ref = a.lon;
+    const ax = normalizeLon(a.lon, ref);
+    const bx = normalizeLon(b.lon, ref);
+    const cx = normalizeLon(c.lon, ref);
+    const dx = normalizeLon(d.lon, ref);
+
+    const o1 = orientation(
+      ax,
+      a.lat,
+      bx,
+      b.lat,
+      cx,
+      c.lat
+    );
+    const o2 = orientation(
+      ax,
+      a.lat,
+      bx,
+      b.lat,
+      dx,
+      d.lat
+    );
+    const o3 = orientation(
+      cx,
+      c.lat,
+      dx,
+      d.lat,
+      ax,
+      a.lat
+    );
+    const o4 = orientation(
+      cx,
+      c.lat,
+      dx,
+      d.lat,
+      bx,
+      b.lat
+    );
+
+    const epsilon = 1e-7;
+    return (
+      o1 * o2 < -epsilon &&
+      o3 * o4 < -epsilon
+    );
+  };
+
+  const crossesExistingConnection = (
+    from: CityNode,
+    to: CityNode
+  ) =>
+    Array.from(connections.values()).some(
+      (connection) => {
+        if (
+          connection.fromCode === from.code ||
+          connection.toCode === from.code ||
+          connection.fromCode === to.code ||
+          connection.toCode === to.code
+        ) {
+          return false;
+        }
+
+        const existingFrom = cityByCode.get(
+          connection.fromCode
+        );
+        const existingTo = cityByCode.get(
+          connection.toCode
+        );
+        if (!existingFrom || !existingTo) {
+          return false;
+        }
+
+        return segmentsCross(
+          from,
+          to,
+          existingFrom,
+          existingTo
+        );
+      }
+    );
 
   const addConnection = (
     from: CityNode,
@@ -26,6 +136,7 @@ export function buildLandConnections(
     if (from.code === to.code) return;
     const id = landConnectionId(from.code, to.code);
     if (connections.has(id)) return;
+    if (crossesExistingConnection(from, to)) return;
     connections.set(id, {
       id,
       fromCode: from.code,
