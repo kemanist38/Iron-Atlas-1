@@ -2554,3 +2554,21 @@ body {
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
+
+
+.city-unit-stack.controllable {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.city-unit-stack.controllable:hover > circle {
+  stroke: #fff1a2 !important;
+  stroke-width: 2.2;
+  filter: drop-shadow(0 0 4px rgba(240, 216, 82, 0.58));
+}
+
+.city-unit-stack.controllable:hover .map-domain-icon path,
+.city-unit-stack.controllable:hover .map-domain-icon rect,
+.city-unit-stack.controllable:hover .map-domain-icon circle {
+  fill: #fff7cf;
+}
