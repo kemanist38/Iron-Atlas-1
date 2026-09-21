@@ -3736,13 +3736,29 @@ export default function App() {
                   previewIsPort &&
                   cityOwners[previewCity!.code] ===
                     currentPlayer;
+                const previewLandConnection =
+                  moveSurface === "land" &&
+                  activeLandSourceCityCode &&
+                  previewCity
+                    ? connectionBetween(
+                        landConnections,
+                        activeLandSourceCityCode,
+                        previewCity.code
+                      )
+                    : undefined;
+                const previewEffectiveDistance =
+                  moveSurface === "land" &&
+                  previewLandConnection
+                    ? previewLandConnection.distanceKm
+                    : previewDistance;
 
                 const previewSurfaceInvalid =
                   Boolean(transportCapacityIssue) ||
                   moveSurface === "mixed" ||
                   moveSurface === "none" ||
                   (moveSurface === "land" &&
-                    !previewIsLand) ||
+                    (!previewCity ||
+                      !previewLandConnection)) ||
                   (moveSurface === "naval" &&
                     previewIsLand &&
                     !previewFriendlyPort) ||
@@ -3769,6 +3785,7 @@ export default function App() {
                 const previewRouteInvalid =
                   !previewSurfaceInvalid &&
                   previewRouteSurface !== "air" &&
+                  previewRouteSurface !== "land" &&
                   !routeStaysOnSurface(
                     world,
                     activeMoveSource,
@@ -3788,20 +3805,25 @@ export default function App() {
                   );
 
                 const previewInvalid =
-                  previewDistance > activeMoveRangeKm ||
+                  previewEffectiveDistance >
+                    activeMoveRangeKm ||
                   previewSurfaceInvalid ||
                   previewRouteInvalid;
 
                 const invalidLabel =
-                  previewDistance > activeMoveRangeKm
+                  previewEffectiveDistance >
+                    activeMoveRangeKm
                     ? "MENZİL DIŞI"
                     : transportCapacityIssue
                       ? "NAKLİYE KAPASİTESİ YETERSİZ"
                       : moveSurface === "mixed"
                         ? "GEÇERSİZ BİRLİK KARIŞIMI"
                         : moveSurface === "land" &&
-                            !previewIsLand
-                          ? "KARA BİRLİĞİ DENİZE GİDEMEZ"
+                            !previewCity
+                          ? "BAĞLI ŞEHİR NOKTASI SEÇ"
+                          : moveSurface === "land" &&
+                              !previewLandConnection
+                            ? "KARA BAĞLANTISI YOK"
                           : moveSurface === "naval" &&
                               previewIsLand &&
                               !previewFriendlyPort
@@ -3848,7 +3870,7 @@ export default function App() {
                               ? invalidLabel + " · "
                               : ""}
                             {Math.round(
-                              previewDistance
+                              previewEffectiveDistance
                             ).toLocaleString("tr-TR")} km
                           </text>
                         </g>
