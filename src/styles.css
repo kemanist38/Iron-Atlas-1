@@ -1590,3 +1590,102 @@ button:disabled {
 .city-window-drag-handle button {
   cursor: pointer;
 }
+
+
+.city-marker.compact .city-node,
+.city-marker.compact .capital-ring {
+  opacity: 0.82;
+  stroke-width: 1.5;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.65));
+}
+
+.city-marker.compact .capital-star {
+  font-size: 9px;
+}
+
+.structure-section {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(169, 157, 33, 0.28);
+}
+
+.structure-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 6px;
+  background: rgba(122, 111, 21, 0.12);
+}
+
+.structure-section-title b {
+  display: block;
+  color: #d8ca55;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+.structure-section-title span {
+  display: block;
+  margin-top: 3px;
+  color: #77858a;
+  font-size: 8px;
+}
+
+.structure-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 58px;
+  gap: 8px;
+  align-items: center;
+  margin-top: 5px;
+  padding: 7px;
+  border: 1px solid #26302d;
+  border-radius: 4px;
+  background: rgba(17, 23, 22, 0.92);
+}
+
+.structure-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #35433e;
+  border-radius: 4px;
+  background: #0a0f0e;
+  color: #d8c857;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.structure-info b {
+  display: block;
+  color: #e1e5df;
+  font-size: 10px;
+}
+
+.structure-info span,
+.structure-info small {
+  display: block;
+  margin-top: 2px;
+  color: #7d8d8b;
+  font-size: 7.5px;
+  line-height: 1.35;
+}
+
+.structure-info small {
+  color: #c7ad50;
+}
+
+.structure-row > button {
+  min-height: 31px;
+  border: 1px solid #4d523b;
+  border-radius: 3px;
+  background: #343a2f;
+  color: #f1eedb;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.structure-row > button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
