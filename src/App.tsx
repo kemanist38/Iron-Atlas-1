@@ -3475,6 +3475,61 @@ export default function App() {
             </g>
 
             {mode === "game" &&
+              seaConnections.map((connection) => {
+                const from =
+                  allCityByCode[connection.fromCode];
+                const to =
+                  allCityByCode[connection.toCode];
+                if (!from || !to) return null;
+
+                const isActive =
+                  Boolean(activeSeaSourceCityCode) &&
+                  (connection.fromCode ===
+                    activeSeaSourceCityCode ||
+                    connection.toCode ===
+                      activeSeaSourceCityCode);
+
+                if (mapZoom < 1.35 && !isActive) {
+                  return null;
+                }
+
+                const [fromX, fromY] = project([
+                  from.lon,
+                  from.lat,
+                ]);
+                const [toBaseX, toY] = project([
+                  to.lon,
+                  to.lat,
+                ]);
+                const toX = shortestWrappedTargetX(
+                  fromX,
+                  toBaseX
+                );
+
+                return (
+                  <g
+                    key={
+                      connection.id +
+                      "-sea-" +
+                      offset
+                    }
+                    className={
+                      "sea-connection-group" +
+                      (isActive ? " active" : "")
+                    }
+                  >
+                    <line
+                      x1={fromX + offset}
+                      y1={fromY}
+                      x2={toX + offset}
+                      y2={toY}
+                      className="sea-connection"
+                    />
+                  </g>
+                );
+              })}
+
+            {mode === "game" &&
               landConnections.map((connection) => {
                 const from =
                   allCityByCode[connection.fromCode];
@@ -3584,23 +3639,44 @@ export default function App() {
                         city.code
                       )
                     : undefined;
+                const seaConnection =
+                  activeSeaSourceCityCode &&
+                  hasPortCode(city.code)
+                    ? seaConnectionBetween(
+                        seaConnections,
+                        activeSeaSourceCityCode,
+                        city.code
+                      )
+                    : undefined;
                 const targetDistance =
                   activeMoveSource && activeMoveRangeKm > 0
                     ? moveSurface === "land" &&
                       landConnection
                       ? landConnection.distanceKm
-                      : haversinePoints(
-                          activeMoveSource,
-                          city
-                        )
+                      : (moveSurface === "naval" ||
+                            moveSurface ===
+                              "naval_transport") &&
+                          seaConnection
+                        ? seaConnection.distanceKm
+                        : haversinePoints(
+                            activeMoveSource,
+                            city
+                          )
                     : 0;
                 const inTargetMode = Boolean(activeMoveSource);
                 const isSameSourceCity =
                   activeMoveSource?.sourceKind === "city" &&
                   city.code === activeMoveSource.id;
                 const graphEligible =
-                  moveSurface !== "land" ||
-                  Boolean(landConnection);
+                  moveSurface === "land"
+                    ? Boolean(landConnection)
+                    : (moveSurface === "naval" ||
+                          moveSurface ===
+                            "naval_transport") &&
+                        activeSeaSourceCityCode
+                      ? hasPortCode(city.code) &&
+                        Boolean(seaConnection)
+                      : true;
                 const isReachableTarget =
                   inTargetMode &&
                   !isSameSourceCity &&
