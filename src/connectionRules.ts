@@ -241,6 +241,10 @@ export function buildLandConnections(
             candidate,
             distance
           ) &&
+          !crossesExistingConnection(
+            city,
+            candidate
+          ) &&
           routeAllowed(city, candidate)
       );
       if (fallback) {
