@@ -2488,13 +2488,18 @@ export default function App() {
           nextTurn % 2 === 0;
         const preferredUnit = needsTransport
           ? UNIT_BY_ID.support_ship
-          : city.isCapital && nextTurn % 3 === 0
-            ? UNIT_BY_ID.light_tank
-            : UNIT_BY_ID.infantry;
+          : city.isCapital &&
+              nextTurn % 5 === 0
+            ? UNIT_BY_ID.fighter
+            : city.isCapital &&
+                nextTurn % 3 === 0
+              ? UNIT_BY_ID.light_tank
+              : UNIT_BY_ID.infantry;
         if (!preferredUnit) return;
 
         const productionLimit =
-          preferredUnit.id === "support_ship"
+          preferredUnit.id === "support_ship" ||
+          preferredUnit.id === "fighter"
             ? 1
             : capacity;
         const unitCost = productionCost(preferredUnit, 1);
@@ -2959,6 +2964,166 @@ export default function App() {
           ).toLocaleString("tr-TR")} km).`
         );
       });
+
+      const airBases = ownedCities
+        .map((city) => {
+          const army =
+            nextGarrisons[city.code] ?? {};
+          const fighter = army.fighter ?? 0;
+          const bomber = army.bomber ?? 0;
+          const helicopter =
+            army.attack_helicopter ?? 0;
+          return {
+            city,
+            fighter,
+            bomber,
+            helicopter,
+            total:
+              fighter + bomber + helicopter,
+          };
+        })
+        .filter((base) => base.total > 0)
+        .sort((a, b) => b.total - a.total);
+
+      const airBase = airBases[0];
+      if (airBase) {
+        const availableAir: Record<
+          string,
+          number
+        > = {};
+        if (airBase.fighter > 0) {
+          availableAir.fighter = Math.min(
+            3,
+            airBase.fighter
+          );
+        }
+        if (airBase.bomber > 0) {
+          availableAir.bomber = Math.min(
+            2,
+            airBase.bomber
+          );
+        }
+        if (
+          airBase.helicopter > 0 &&
+          !availableAir.bomber
+        ) {
+          availableAir.attack_helicopter =
+            Math.min(2, airBase.helicopter);
+        }
+
+        const airDefinitions = Object.keys(
+          availableAir
+        )
+          .map((unitId) => UNIT_BY_ID[unitId])
+          .filter(Boolean) as UnitDefinition[];
+
+        if (airDefinitions.length > 0) {
+          const airRange = Math.min(
+            ...airDefinitions.map(
+              movementRangeKm
+            )
+          );
+          const airTarget = allCities
+            .filter(
+              (city) =>
+                nextCityOwners[city.code] &&
+                nextCityOwners[city.code] !==
+                  player
+            )
+            .map((city) => ({
+              city,
+              distance: haversinePoints(
+                airBase.city,
+                city
+              ),
+            }))
+            .filter(
+              ({ distance }) =>
+                distance <= airRange
+            )
+            .sort((a, b) => {
+              const aOwner =
+                nextCityOwners[a.city.code] ??
+                null;
+              const bOwner =
+                nextCityOwners[b.city.code] ??
+                null;
+              const aPriority =
+                aOwner === currentPlayer
+                  ? 0
+                  : a.city.isCapital
+                    ? 1
+                    : 2;
+              const bPriority =
+                bOwner === currentPlayer
+                  ? 0
+                  : b.city.isCapital
+                    ? 1
+                    : 2;
+              return (
+                aPriority - bPriority ||
+                a.distance - b.distance
+              );
+            })[0];
+
+          if (airTarget) {
+            const [sourceX, sourceY] = project([
+              airBase.city.lon,
+              airBase.city.lat,
+            ]);
+            const [targetX, targetY] = project([
+              airTarget.city.lon,
+              airTarget.city.lat,
+            ]);
+
+            Object.entries(
+              availableAir
+            ).forEach(
+              ([unitId, quantity]) => {
+                const available =
+                  nextGarrisons[
+                    airBase.city.code
+                  ]?.[unitId] ?? 0;
+                const moved = Math.min(
+                  available,
+                  quantity
+                );
+                if (moved <= 0) return;
+
+                nextGarrisons[
+                  airBase.city.code
+                ][unitId] =
+                  available - moved;
+
+                aiOrders.push({
+                  id: orderIdRef.current++,
+                  player,
+                  kind: "attack",
+                  fromCode:
+                    airBase.city.code,
+                  fromArmyId: null,
+                  sourceX,
+                  sourceY,
+                  targetX,
+                  targetY,
+                  targetCityCode:
+                    airTarget.city.code,
+                  unitId,
+                  quantity: moved,
+                  distanceKm:
+                    airTarget.distance,
+                  departureTurn: turn,
+                  arrivalTurn: nextTurn,
+                });
+              }
+            );
+
+            combatLog.push(
+              `${player}: ${airBase.city.name} → ${airTarget.city.name} hava saldırısı başlattı.`
+            );
+          }
+        }
+      }
     });
 
     const ordersForResolution = [
