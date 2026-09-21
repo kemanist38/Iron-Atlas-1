@@ -184,3 +184,91 @@ export function connectionRelation(
   if (aOwner && bOwner && aOwner !== bOwner) return "frontline";
   return "neutral";
 }
+
+
+export type SeaConnection = {
+  id: string;
+  fromCode: string;
+  toCode: string;
+  distanceKm: number;
+};
+
+export function seaConnectionId(a: string, b: string) {
+  return "sea::" + [a, b].sort().join("::");
+}
+
+export function buildSeaConnections(
+  cities: CityNode[],
+  isPort: (cityCode: string) => boolean,
+  distanceBetween: (a: CityNode, b: CityNode) => number,
+  routeAllowed: (a: CityNode, b: CityNode) => boolean
+): SeaConnection[] {
+  const ports = cities.filter((city) => isPort(city.code));
+  const connections = new Map<string, SeaConnection>();
+
+  const addConnection = (
+    from: CityNode,
+    to: CityNode,
+    distanceKm: number
+  ) => {
+    if (from.code === to.code) return;
+    const id = seaConnectionId(from.code, to.code);
+    if (connections.has(id)) return;
+    connections.set(id, {
+      id,
+      fromCode: from.code,
+      toCode: to.code,
+      distanceKm,
+    });
+  };
+
+  ports.forEach((port) => {
+    const candidates = ports
+      .filter((candidate) => candidate.code !== port.code)
+      .map((candidate) => ({
+        city: candidate,
+        distance: distanceBetween(port, candidate),
+      }))
+      .filter(
+        ({ city, distance }) =>
+          distance <= 2400 &&
+          routeAllowed(port, city)
+      )
+      .sort((a, b) => a.distance - b.distance);
+
+    const sameCountry = candidates
+      .filter(
+        ({ city, distance }) =>
+          city.countryCode === port.countryCode &&
+          distance <= 1900
+      )
+      .slice(0, 3);
+
+    sameCountry.forEach(({ city, distance }) =>
+      addConnection(port, city, distance)
+    );
+
+    const international = candidates
+      .filter(
+        ({ city, distance }) =>
+          city.countryCode !== port.countryCode &&
+          distance <= 1500
+      )
+      .slice(0, 4);
+
+    international.forEach(({ city, distance }) =>
+      addConnection(port, city, distance)
+    );
+  });
+
+  return Array.from(connections.values());
+}
+
+export function seaConnectionBetween(
+  connections: SeaConnection[],
+  a: string,
+  b: string
+) {
+  const id = seaConnectionId(a, b);
+  return connections.find((connection) => connection.id === id);
+}
