@@ -4061,6 +4061,48 @@ export default function App() {
   const countryHold =
     capitalHolds[selectedCountry];
 
+  const commanderStatus = [
+    currentPlayer,
+    "Dogan",
+    "Nova",
+  ]
+    .filter(
+      (player, index, array) =>
+        array.indexOf(player) === index &&
+        Boolean(homeCountries[player])
+    )
+    .map((player) => {
+      const homeCode = homeCountries[player];
+      const homeCountry =
+        allCountryByCode[homeCode];
+      const controlledCities = allCities.filter(
+        (city) => cityOwners[city.code] === player
+      ).length;
+      const homeCapital = allCitiesForCountry(
+        homeCode
+      ).find((city) => city.isCapital);
+      const capitalOwner = homeCapital
+        ? cityOwners[homeCapital.code] ?? null
+        : null;
+      const treasury =
+        player === currentPlayer
+          ? resources
+          : aiResources[player] ?? {
+              gold: 0,
+              steel: 0,
+              oil: 0,
+            };
+
+      return {
+        player,
+        homeCode,
+        homeName: homeCountry?.name ?? homeCode,
+        controlledCities,
+        capitalOwner,
+        gold: treasury.gold,
+      };
+    });
+
   return (
     <div className="app game-screen">
       <header className="game-hud">
@@ -4192,6 +4234,55 @@ export default function App() {
             <span>Toplam şehrin</span>
             <b>{ownedCityCount}</b>
           </div>
+        </aside>
+
+        <aside className="commander-status panel">
+          <div className="commander-status-title">
+            KOMUTANLAR
+          </div>
+          {commanderStatus.map((entry) => (
+            <div
+              className="commander-status-row"
+              key={entry.player}
+            >
+              <span
+                className="commander-color"
+                style={{
+                  background:
+                    entry.player === currentPlayer
+                      ? playerColor
+                      : AI_COLORS[entry.player] ??
+                        "#7a8288",
+                }}
+              />
+              <div>
+                <b>
+                  {entry.player}
+                  {entry.player === currentPlayer
+                    ? " (Sen)"
+                    : ""}
+                </b>
+                <span>{entry.homeName}</span>
+              </div>
+              <div className="commander-stats">
+                <b>{entry.controlledCities} şehir</b>
+                <span>
+                  {entry.gold.toLocaleString("tr-TR")} A
+                </span>
+                <small
+                  className={
+                    entry.capitalOwner === entry.player
+                      ? "capital-safe"
+                      : "capital-danger"
+                  }
+                >
+                  {entry.capitalOwner === entry.player
+                    ? "★ Başkent güvende"
+                    : "★ Başkent kayıp"}
+                </small>
+              </div>
+            </div>
+          ))}
         </aside>
 
         {cityPanelOpen && selectedCity && (
