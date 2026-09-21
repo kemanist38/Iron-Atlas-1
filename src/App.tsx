@@ -689,6 +689,9 @@ export default function App() {
     steel: 0,
     oil: 0,
   });
+  const [aiResources, setAiResources] = useState<
+    Record<string, Resources>
+  >({});
   const [turn, setTurn] = useState(1);
   const [countryOwners, setCountryOwners] = useState<
     Record<string, string | null>
@@ -1389,6 +1392,30 @@ export default function App() {
       ...(doganCountry ? { Dogan: doganCountry } : {}),
       ...(novaCountry ? { Nova: novaCountry } : {}),
     });
+    const initialAiResources: Record<string, Resources> = {};
+    if (doganCountry) {
+      const botCountry = allCountryByCode[doganCountry];
+      initialAiResources.Dogan = {
+        gold: Math.max(
+          3000,
+          startingMoney - (botCountry?.purchasePrice ?? 0)
+        ),
+        steel: 900,
+        oil: 720,
+      };
+    }
+    if (novaCountry) {
+      const botCountry = allCountryByCode[novaCountry];
+      initialAiResources.Nova = {
+        gold: Math.max(
+          3000,
+          startingMoney - (botCountry?.purchasePrice ?? 0)
+        ),
+        steel: 900,
+        oil: 720,
+      };
+    }
+    setAiResources(initialAiResources);
     setWinner(null);
 
     const nextCountryOwners: Record<string, string | null> = {};
@@ -1959,11 +1986,263 @@ export default function App() {
     const nextCityOwners = { ...cityOwners };
     const nextCountryOwners = { ...countryOwners };
     const combatLog: string[] = [];
+    const nextAiResources: Record<string, Resources> =
+      Object.fromEntries(
+        Object.entries(aiResources).map(
+          ([player, stock]) => [
+            player,
+            { ...stock },
+          ]
+        )
+      );
 
-    const arrivingMovementOrders = movementQueue.filter(
+    const aiOrders: MovementOrder[] = [];
+    const aiPlayers = ["Dogan", "Nova"].filter(
+      (player) => Boolean(homeCountries[player])
+    );
+
+    aiPlayers.forEach((player) => {
+      const stock =
+        nextAiResources[player] ??
+        { gold: 5000, steel: 900, oil: 720 };
+      nextAiResources[player] = stock;
+
+      const ownedCities = allCities.filter(
+        (city) => nextCityOwners[city.code] === player
+      );
+
+      // AI production is immediate, just like player production.
+      ownedCities.forEach((city) => {
+        const capacity = effectiveRecruitCapacity(city);
+        if (capacity <= 0) return;
+
+        const preferredUnit =
+          city.isCapital && nextTurn % 3 === 0
+            ? UNIT_BY_ID.light_tank
+            : UNIT_BY_ID.infantry;
+        if (!preferredUnit) return;
+
+        const unitCost = productionCost(preferredUnit, 1);
+        const affordable = Math.min(
+          Math.floor(stock.gold / Math.max(1, unitCost.gold)),
+          Math.floor(stock.steel / Math.max(1, unitCost.steel)),
+          unitCost.oil > 0
+            ? Math.floor(stock.oil / unitCost.oil)
+            : capacity
+        );
+        const quantity = Math.max(
+          0,
+          Math.min(capacity, affordable)
+        );
+        if (quantity <= 0) return;
+
+        const totalCost = productionCost(
+          preferredUnit,
+          quantity
+        );
+        stock.gold -= totalCost.gold;
+        stock.steel -= totalCost.steel;
+        stock.oil -= totalCost.oil;
+
+        nextGarrisons[city.code] = {
+          ...(nextGarrisons[city.code] ?? {}),
+          [preferredUnit.id]:
+            (nextGarrisons[city.code]?.[
+              preferredUnit.id
+            ] ?? 0) + quantity,
+        };
+
+        combatLog.push(
+          `${player} · ${city.name}: ${quantity} × ${preferredUnit.name} üretildi.`
+        );
+      });
+
+      // Stronger cities act first. Each bot can open at most two fronts per turn.
+      const sourceCities = [...ownedCities].sort(
+        (a, b) =>
+          unitAttackPower(
+            nextGarrisons[b.code] ?? {}
+          ) -
+          unitAttackPower(
+            nextGarrisons[a.code] ?? {}
+          )
+      );
+
+      let actions = 0;
+      sourceCities.forEach((sourceCity) => {
+        if (actions >= 2) return;
+
+        const sourceArmy =
+          nextGarrisons[sourceCity.code] ?? {};
+        const infantry = sourceArmy.infantry ?? 0;
+        const lightTank = sourceArmy.light_tank ?? 0;
+        const heavyTank = sourceArmy.heavy_tank ?? 0;
+
+        const reserveInfantry =
+          sourceCity.isCapital ? 30 : 8;
+        const movingInfantry = Math.max(
+          0,
+          Math.min(
+            24,
+            Math.floor(
+              (infantry - reserveInfantry) * 0.55
+            )
+          )
+        );
+        const movingLightTank = Math.max(
+          0,
+          Math.min(6, Math.floor(lightTank * 0.45))
+        );
+        const movingHeavyTank = Math.max(
+          0,
+          Math.min(2, Math.floor(heavyTank * 0.35))
+        );
+
+        if (
+          movingInfantry +
+            movingLightTank +
+            movingHeavyTank <
+          5
+        ) {
+          return;
+        }
+
+        const moveUnits: Record<string, number> = {};
+        if (movingInfantry > 0)
+          moveUnits.infantry = movingInfantry;
+        if (movingLightTank > 0)
+          moveUnits.light_tank = movingLightTank;
+        if (movingHeavyTank > 0)
+          moveUnits.heavy_tank = movingHeavyTank;
+
+        const selectedUnits = Object.keys(moveUnits)
+          .map((unitId) => UNIT_BY_ID[unitId])
+          .filter(Boolean) as UnitDefinition[];
+        const rangeKm = Math.min(
+          ...selectedUnits.map(movementRangeKm)
+        );
+
+        const candidates = allCities
+          .filter(
+            (city) =>
+              city.code !== sourceCity.code &&
+              nextCityOwners[city.code] !== player
+          )
+          .map((city) => ({
+            city,
+            distance: haversinePoints(
+              sourceCity,
+              city
+            ),
+          }))
+          .filter(
+            ({ city, distance }) =>
+              distance <= rangeKm &&
+              routeStaysOnSurface(
+                world,
+                sourceCity,
+                city,
+                "land",
+                false,
+                false
+              )
+          )
+          .sort((a, b) => {
+            const aOwner =
+              nextCityOwners[a.city.code] ?? null;
+            const bOwner =
+              nextCityOwners[b.city.code] ?? null;
+            const aPriority =
+              aOwner === currentPlayer
+                ? 0
+                : a.city.isCapital
+                  ? 1
+                  : aOwner
+                    ? 2
+                    : 3;
+            const bPriority =
+              bOwner === currentPlayer
+                ? 0
+                : b.city.isCapital
+                  ? 1
+                  : bOwner
+                    ? 2
+                    : 3;
+            return (
+              aPriority - bPriority ||
+              a.distance - b.distance
+            );
+          });
+
+        const target = candidates[0];
+        if (!target) return;
+
+        const [sourceX, sourceY] = project([
+          sourceCity.lon,
+          sourceCity.lat,
+        ]);
+        const [targetX, targetY] = project([
+          target.city.lon,
+          target.city.lat,
+        ]);
+        const targetOwner =
+          nextCityOwners[target.city.code] ?? null;
+
+        Object.entries(moveUnits).forEach(
+          ([unitId, quantity]) => {
+            const available =
+              nextGarrisons[sourceCity.code]?.[
+                unitId
+              ] ?? 0;
+            const moved = Math.min(
+              quantity,
+              available
+            );
+            if (moved <= 0) return;
+
+            nextGarrisons[sourceCity.code][unitId] =
+              available - moved;
+            aiOrders.push({
+              id: orderIdRef.current++,
+              player,
+              kind:
+                targetOwner === player
+                  ? "move"
+                  : "attack",
+              fromCode: sourceCity.code,
+              fromArmyId: null,
+              sourceX,
+              sourceY,
+              targetX,
+              targetY,
+              targetCityCode: target.city.code,
+              unitId,
+              quantity: moved,
+              distanceKm: target.distance,
+              departureTurn: turn,
+              arrivalTurn: nextTurn,
+            });
+          }
+        );
+
+        actions += 1;
+        combatLog.push(
+          `${player}: ${sourceCity.name} → ${target.city.name} için birlik emri verdi (${Math.round(
+            target.distance
+          ).toLocaleString("tr-TR")} km).`
+        );
+      });
+    });
+
+    const ordersForResolution = [
+      ...movementQueue,
+      ...aiOrders,
+    ];
+
+    const arrivingMovementOrders = ordersForResolution.filter(
       (order) => order.arrivalTurn <= nextTurn
     );
-    const inTransitMovementOrders = movementQueue.filter(
+    const inTransitMovementOrders = ordersForResolution.filter(
       (order) => order.arrivalTurn > nextTurn
     );
 
@@ -2508,6 +2787,53 @@ export default function App() {
       steel: current.steel + steelIncome,
       oil: current.oil + oilIncome,
     }));
+
+    aiPlayers.forEach((player) => {
+      const stock =
+        nextAiResources[player] ??
+        { gold: 0, steel: 0, oil: 0 };
+      const botCities = allCities.filter(
+        (city) => nextCityOwners[city.code] === player
+      );
+      const botGoldIncome = botCities.reduce(
+        (sum, city) => {
+          const bankLevel =
+            structuresForCity(city.code).bank;
+          return (
+            sum +
+            Math.round(
+              city.growth *
+                (1 + bankLevel * 0.15)
+            )
+          );
+        },
+        0
+      );
+      const botSteelIncome = botCities.reduce(
+        (sum, city) =>
+          sum +
+          (allCountryByCode[city.countryCode]
+            ?.primaryResource === "Çelik"
+            ? 18
+            : 4),
+        0
+      );
+      const botOilIncome = botCities.reduce(
+        (sum, city) =>
+          sum +
+          (allCountryByCode[city.countryCode]
+            ?.primaryResource === "Petrol"
+            ? 18
+            : 3),
+        0
+      );
+
+      stock.gold += botGoldIncome;
+      stock.steel += botSteelIncome;
+      stock.oil += botOilIncome;
+    });
+
+    setAiResources(nextAiResources);
     setGarrisons(nextGarrisons);
     setCityOwners(nextCityOwners);
     setCountryOwners(nextCountryOwners);
