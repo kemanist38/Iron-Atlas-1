@@ -2979,6 +2979,34 @@ export default function App() {
         onPointerLeave={handleMapUp}
         onWheel={handleWheel}
       >
+        <defs>
+          <mask
+            id="ocean-tint-mask"
+            maskUnits="userSpaceOnUse"
+            x="0"
+            y="0"
+            width={WORLD_WIDTH}
+            height={WORLD_HEIGHT}
+          >
+            <rect
+              x="0"
+              y="0"
+              width={WORLD_WIDTH}
+              height={WORLD_HEIGHT}
+              fill="white"
+            />
+            {world.map((feature, index) => (
+              <path
+                key={"ocean-mask-" + index}
+                d={geometryToPath(feature.geometry)}
+                fill="black"
+                stroke="black"
+                strokeWidth="1"
+              />
+            ))}
+          </mask>
+        </defs>
+
         <rect
           x={-WORLD_WIDTH}
           y="0"
@@ -2998,6 +3026,17 @@ export default function App() {
               preserveAspectRatio="none"
               className="terrain-base"
             />
+
+            <g transform={`translate(${offset} 0)`}>
+              <rect
+                x="0"
+                y="0"
+                width={WORLD_WIDTH}
+                height={WORLD_HEIGHT}
+                className="ocean-color-layer"
+                mask="url(#ocean-tint-mask)"
+              />
+            </g>
 
             <g transform={`translate(${offset} 0)`}>
               {world.map((feature, index) => {
