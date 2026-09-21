@@ -2444,3 +2444,40 @@ body {
   stroke-width: 1.15;
   stroke-dasharray: 4 3;
 }
+
+
+/* Reference screenshot calibration */
+.map-stage,
+.game-map-stage {
+  background: #1d322c;
+}
+
+.ocean-base {
+  fill: #203832;
+}
+
+.terrain-base {
+  filter:
+    brightness(0.66)
+    contrast(1.12)
+    saturate(0.92)
+    sepia(0.035);
+}
+
+.ocean-color-layer {
+  fill: #36584f;
+  opacity: 0.3;
+  mix-blend-mode: soft-light;
+}
+
+.country-shape {
+  stroke: rgba(226, 221, 204, 0.38);
+}
+
+.panel,
+.country-intel,
+.commander-status,
+.turn-report,
+.field-army-window {
+  background: rgba(12, 14, 12, 0.95);
+}
