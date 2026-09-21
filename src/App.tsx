@@ -28,6 +28,12 @@ import {
   type CityNode,
   type CountryDefinition,
 } from "./gameData";
+import {
+  CITY_STRUCTURES,
+  EMPTY_CITY_STRUCTURES,
+  type CityStructureDefinition,
+  type CityStructureLevels,
+} from "./cityStructures";
 
 type Screen = "lobby" | "setup" | "homeland" | "game";
 type Resources = { gold: number; steel: number; oil: number };
@@ -736,6 +742,9 @@ export default function App() {
   const [productionUsedThisTurn, setProductionUsedThisTurn] =
     useState<Record<string, number>>({});
   const productionUsedRef = useRef<Record<string, number>>({});
+  const [cityStructures, setCityStructures] = useState<
+    Record<string, CityStructureLevels>
+  >({});
   const [cityTab, setCityTab] =
     useState<"production" | "movement">("production");
   const [moveDraft, setMoveDraft] = useState<
@@ -920,6 +929,13 @@ export default function App() {
   const hasPortCode = (cityCode: string) =>
     cityHasPort(cityCode) ||
     generatedWorldData.portCodes.has(cityCode);
+  const structuresForCity = (cityCode: string) => ({
+    ...EMPTY_CITY_STRUCTURES,
+    ...(cityStructures[cityCode] ?? {}),
+  });
+  const effectiveRecruitCapacity = (city: CityNode) =>
+    city.recruitCapacity +
+    structuresForCity(city.code).recruitment;
 
   const strategy = strategyById(selectedStrategy);
   const selectedCity = allCities.find(
@@ -1382,6 +1398,7 @@ export default function App() {
     setCountryOwners(nextCountryOwners);
     setCityOwners(nextCityOwners);
     setGarrisons(nextGarrisons);
+    setCityStructures({});
     setProductionQueue([]);
     productionUsedRef.current = {};
     setProductionUsedThisTurn({});
@@ -1419,6 +1436,63 @@ export default function App() {
     setScreen("game");
   }
 
+  function buildCityStructure(
+    city: CityNode,
+    structure: CityStructureDefinition
+  ) {
+    if (cityOwners[city.code] !== currentPlayer) {
+      setNotice(
+        "Şehir yapıları yalnızca kendi kontrolündeki şehirlerde kurulabilir."
+      );
+      return;
+    }
+
+    const levels = structuresForCity(city.code);
+    const currentLevel = levels[structure.id] ?? 0;
+
+    if (currentLevel >= structure.maxLevel) {
+      setNotice(
+        `${structure.name} zaten maksimum seviye ${structure.maxLevel}.`
+      );
+      return;
+    }
+
+    const levelMultiplier = currentLevel + 1;
+    const goldCost = structure.goldCost * levelMultiplier;
+    const steelCost = structure.steelCost * levelMultiplier;
+    const oilCost = structure.oilCost * levelMultiplier;
+
+    if (
+      resources.gold < goldCost ||
+      resources.steel < steelCost ||
+      resources.oil < oilCost
+    ) {
+      setNotice(
+        `${structure.name} için yeterli kaynağın yok.`
+      );
+      return;
+    }
+
+    setResources((current) => ({
+      gold: current.gold - goldCost,
+      steel: current.steel - steelCost,
+      oil: current.oil - oilCost,
+    }));
+
+    setCityStructures((current) => ({
+      ...current,
+      [city.code]: {
+        ...EMPTY_CITY_STRUCTURES,
+        ...(current[city.code] ?? {}),
+        [structure.id]: currentLevel + 1,
+      },
+    }));
+
+    setNotice(
+      `${city.name}: ${structure.name} seviye ${currentLevel + 1} tamamlandı.`
+    );
+  }
+
   function queueProduction(
     city: CityNode,
     unit: UnitDefinition,
@@ -1440,14 +1514,16 @@ export default function App() {
 
     const alreadyProduced =
       productionUsedRef.current[city.code] ?? 0;
+    const recruitCapacity =
+      effectiveRecruitCapacity(city);
     const remainingCapacity = Math.max(
       0,
-      city.recruitCapacity - alreadyProduced
+      recruitCapacity - alreadyProduced
     );
 
     if (remainingCapacity <= 0) {
       setNotice(
-        `${city.name} bu turdaki ${city.recruitCapacity} birimlik üretim kapasitesini tamamen kullandı.`
+        `${city.name} bu turdaki ${recruitCapacity} birimlik üretim kapasitesini tamamen kullandı.`
       );
       return;
     }
@@ -1496,8 +1572,8 @@ export default function App() {
     const clipped = quantity < requestedQuantity;
     setNotice(
       clipped
-        ? `${city.name}: kapasite nedeniyle ${requestedQuantity} yerine ${quantity} × ${unit.name} üretildi. Bu tur kapasite ${nextUsed}/${city.recruitCapacity}.`
-        : `${city.name}: ${quantity} × ${unit.name} anında üretildi. Bu tur kapasite ${nextUsed}/${city.recruitCapacity}. Aynı tur taşıyabilirsin.`
+        ? `${city.name}: kapasite nedeniyle ${requestedQuantity} yerine ${quantity} × ${unit.name} üretildi. Bu tur kapasite ${nextUsed}/${recruitCapacity}.`
+        : `${city.name}: ${quantity} × ${unit.name} anında üretildi. Bu tur kapasite ${nextUsed}/${recruitCapacity}. Aynı tur taşıyabilirsin.`
     );
   }
 
@@ -1971,8 +2047,8 @@ export default function App() {
       const rawDefensePower = unitDefensePower(defenders);
       const capitalDefenseMultiplier =
         targetCity.isCapital ? 1.18 : 1;
-      const defensePower =
-        rawDefensePower * capitalDefenseMultiplier;
+      const targetStructures =
+        structuresForCity(targetCity.code);
 
       const hasLandUnits = Object.entries(
         group.units
@@ -1995,6 +2071,18 @@ export default function App() {
           quantity > 0 &&
           UNIT_BY_ID[unitId]?.domain === "air"
       );
+      const fortificationMultiplier =
+        1 + targetStructures.fortification * 0.2;
+      const antiAirMultiplier =
+        hasAirUnits
+          ? 1 + targetStructures.anti_air * 0.3
+          : 1;
+      const defensePower =
+        rawDefensePower *
+        capitalDefenseMultiplier *
+        fortificationMultiplier *
+        antiAirMultiplier;
+
       const amphibiousLanding =
         hasLandUnits && hasNavalUnits;
       const airborneLanding =
@@ -2008,13 +2096,22 @@ export default function App() {
           ? 0.9
           : 1;
 
+      const radarAirModifier =
+        hasAirUnits
+          ? Math.max(
+              0.7,
+              1 - targetStructures.radar * 0.08
+            )
+          : 1;
       const attackPower =
         unitAttackPower(
           group.units,
           group.player === currentPlayer
             ? effectiveUnit
             : undefined
-        ) * landingModifier;
+        ) *
+        landingModifier *
+        radarAirModifier;
 
       const attackerCount = Object.values(group.units).reduce(
         (sum, quantity) => sum + quantity,
@@ -2355,7 +2452,16 @@ export default function App() {
         nextCityOwners[city.code] === currentPlayer
     );
     const goldIncome = ownedCities.reduce(
-      (sum, city) => sum + city.growth,
+      (sum, city) => {
+        const bankLevel =
+          structuresForCity(city.code).bank;
+        return (
+          sum +
+          Math.round(
+            city.growth * (1 + bankLevel * 0.15)
+          )
+        );
+      },
       0
     );
     const steelIncome = ownedCities.reduce(
