@@ -2689,22 +2689,27 @@ export default function App() {
                   connection.toCode ===
                     sourceCity.code
               )
-              .map((connection) => {
+              .flatMap((connection) => {
                 const targetCode =
                   connection.fromCode ===
                   sourceCity.code
                     ? connection.toCode
                     : connection.fromCode;
-                return {
-                  connection,
-                  city: allCityByCode[targetCode],
-                  distance:
-                    connection.distanceKm,
-                };
+                const city =
+                  allCityByCode[targetCode];
+                return city
+                  ? [
+                      {
+                        connection,
+                        city,
+                        distance:
+                          connection.distanceKm,
+                      },
+                    ]
+                  : [];
               })
               .filter(
                 ({ city, distance }) =>
-                  Boolean(city) &&
                   nextCityOwners[city.code] !==
                     player &&
                   distance <= seaRange
