@@ -955,6 +955,26 @@ export default function App() {
     selectedCountryCities.filter(
       (city) => cityOwners[city.code] === currentPlayer
     );
+  const selectedStrategicOwner =
+    countryOwners[selectedCountry] ?? null;
+  const selectedStrategicOwnedCities =
+    selectedStrategicOwner
+      ? selectedCountryCities.filter(
+          (city) =>
+            cityOwners[city.code] ===
+            selectedStrategicOwner
+        )
+      : [];
+  const selectedNeutralCities =
+    selectedCountryCities.filter(
+      (city) => !cityOwners[city.code]
+    );
+  const selectedCityStructures = selectedCity
+    ? structuresForCity(selectedCity.code)
+    : EMPTY_CITY_STRUCTURES;
+  const selectedCityRecruitCapacity = selectedCity
+    ? effectiveRecruitCapacity(selectedCity)
+    : 0;
   const selectedCapital = selectedCountryCities.find(
     (city) => city.isCapital
   );
@@ -3697,11 +3717,22 @@ export default function App() {
             </b>
           </div>
           <div>
-            <span>Şehir kontrolü</span>
+            <span>Stratejik kontrol</span>
+            <b>
+              {selectedStrategicOwnedCities.length}/
+              {selectedCountryCities.length}
+            </b>
+          </div>
+          <div>
+            <span>Senin şehirlerin</span>
             <b>
               {selectedCountryOwnedCities.length}/
               {selectedCountryCities.length}
             </b>
+          </div>
+          <div>
+            <span>Tarafsız şehir</span>
+            <b>{selectedNeutralCities.length}</b>
           </div>
           <div>
             <span>Başkent</span>
@@ -3806,7 +3837,7 @@ export default function App() {
                     ? "★ Başkent"
                     : "Şehir"}{" "}
                   · Kapasite{" "}
-                  {selectedCity.recruitCapacity}
+                  {selectedCityRecruitCapacity}
                   {hasPortCode(selectedCity.code)
                     ? " · ⚓ Liman"
                     : ""}
@@ -3875,13 +3906,13 @@ export default function App() {
                     {productionUsedThisTurn[
                       selectedCity.code
                     ] ?? 0}
-                    /{selectedCity.recruitCapacity}
+                    /{selectedCityRecruitCapacity}
                   </b>
                   <span>Kalan kapasite</span>
                   <b>
                     {Math.max(
                       0,
-                      selectedCity.recruitCapacity -
+                      selectedCityRecruitCapacity -
                         (productionUsedThisTurn[
                           selectedCity.code
                         ] ?? 0)
@@ -3943,7 +3974,7 @@ export default function App() {
                           (productionUsedThisTurn[
                             selectedCity.code
                           ] ?? 0) >=
-                            selectedCity.recruitCapacity
+                            selectedCityRecruitCapacity
                         }
                         onClick={() =>
                           queueProduction(
@@ -3963,7 +3994,7 @@ export default function App() {
                           (productionUsedThisTurn[
                             selectedCity.code
                           ] ?? 0) >=
-                            selectedCity.recruitCapacity
+                            selectedCityRecruitCapacity
                         }
                         onClick={() =>
                           queueProduction(
@@ -3983,7 +4014,7 @@ export default function App() {
                           (productionUsedThisTurn[
                             selectedCity.code
                           ] ?? 0) >=
-                            selectedCity.recruitCapacity
+                            selectedCityRecruitCapacity
                         }
                         onClick={() =>
                           queueProduction(
@@ -3998,6 +4029,76 @@ export default function App() {
                     </div>
                   );
                 })}
+
+                <div className="structure-section">
+                  <div className="structure-section-title">
+                    <div>
+                      <b>ŞEHİR YAPILARI</b>
+                      <span>
+                        Yapılar anında tamamlanır ve şehirde kalır.
+                      </span>
+                    </div>
+                  </div>
+
+                  {CITY_STRUCTURES.map((structure) => {
+                    const level =
+                      selectedCityStructures[
+                        structure.id
+                      ] ?? 0;
+                    const nextLevel = level + 1;
+                    const maxed =
+                      level >= structure.maxLevel;
+                    const goldCost =
+                      structure.goldCost * nextLevel;
+                    const steelCost =
+                      structure.steelCost * nextLevel;
+                    const oilCost =
+                      structure.oilCost * nextLevel;
+
+                    return (
+                      <div
+                        className="structure-row"
+                        key={structure.id}
+                      >
+                        <div className="structure-icon">
+                          {structure.icon}
+                        </div>
+                        <div className="structure-info">
+                          <b>{structure.name}</b>
+                          <span>
+                            Seviye {level}/
+                            {structure.maxLevel} ·{" "}
+                            {structure.description}
+                          </span>
+                          {!maxed && (
+                            <small>
+                              {goldCost} A ·{" "}
+                              {steelCost} Ç ·{" "}
+                              {oilCost} P
+                            </small>
+                          )}
+                        </div>
+                        <button
+                          disabled={
+                            maxed ||
+                            selectedCityOwner !==
+                              currentPlayer
+                          }
+                          onClick={() =>
+                            buildCityStructure(
+                              selectedCity,
+                              structure
+                            )
+                          }
+                        >
+                          {maxed
+                            ? "MAX"
+                            : "+ SV" + nextLevel}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <div className="unit-scroll movement-list">
