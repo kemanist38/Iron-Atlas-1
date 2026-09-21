@@ -2196,7 +2196,82 @@ export default function App() {
             );
           });
 
-        const target = candidates[0];
+        let target = candidates[0];
+
+        if (!target) {
+          const enemyCities = allCities.filter(
+            (city) =>
+              nextCityOwners[city.code] !== player
+          );
+          const sourceEnemyDistance =
+            enemyCities.reduce(
+              (best, enemyCity) =>
+                Math.min(
+                  best,
+                  haversinePoints(
+                    sourceCity,
+                    enemyCity
+                  )
+                ),
+              Number.POSITIVE_INFINITY
+            );
+
+          const reinforcementTarget = ownedCities
+            .filter(
+              (city) =>
+                city.code !== sourceCity.code
+            )
+            .map((city) => {
+              const distance =
+                haversinePoints(sourceCity, city);
+              const enemyDistance =
+                enemyCities.reduce(
+                  (best, enemyCity) =>
+                    Math.min(
+                      best,
+                      haversinePoints(
+                        city,
+                        enemyCity
+                      )
+                    ),
+                  Number.POSITIVE_INFINITY
+                );
+              return {
+                city,
+                distance,
+                enemyDistance,
+              };
+            })
+            .filter(
+              ({ city, distance, enemyDistance }) =>
+                distance <= rangeKm &&
+                enemyDistance + 80 <
+                  sourceEnemyDistance &&
+                routeStaysOnSurface(
+                  world,
+                  sourceCity,
+                  city,
+                  "land",
+                  false,
+                  false
+                )
+            )
+            .sort(
+              (a, b) =>
+                a.enemyDistance -
+                  b.enemyDistance ||
+                a.distance - b.distance
+            )[0];
+
+          if (reinforcementTarget) {
+            target = {
+              city: reinforcementTarget.city,
+              distance:
+                reinforcementTarget.distance,
+            };
+          }
+        }
+
         if (!target) return;
 
         const [sourceX, sourceY] = project([
