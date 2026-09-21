@@ -1231,6 +1231,81 @@ export default function App() {
   const selectedCityRecruitCapacity = selectedCity
     ? effectiveRecruitCapacity(selectedCity)
     : 0;
+
+  const selectedLandTargets = selectedCity
+    ? landConnections
+        .filter(
+          (connection) =>
+            connection.fromCode ===
+              selectedCity.code ||
+            connection.toCode ===
+              selectedCity.code
+        )
+        .flatMap((connection) => {
+          const targetCode =
+            connection.fromCode ===
+            selectedCity.code
+              ? connection.toCode
+              : connection.fromCode;
+          const city =
+            allCityByCode[targetCode];
+          return city
+            ? [
+                {
+                  city,
+                  distance:
+                    connection.distanceKm,
+                  owner:
+                    cityOwners[city.code] ??
+                    null,
+                },
+              ]
+            : [];
+        })
+        .sort(
+          (a, b) =>
+            a.distance - b.distance
+        )
+    : [];
+
+  const selectedSeaTargets =
+    selectedCity &&
+    hasPortCode(selectedCity.code)
+      ? seaConnections
+          .filter(
+            (connection) =>
+              connection.fromCode ===
+                selectedCity.code ||
+              connection.toCode ===
+                selectedCity.code
+          )
+          .flatMap((connection) => {
+            const targetCode =
+              connection.fromCode ===
+              selectedCity.code
+                ? connection.toCode
+                : connection.fromCode;
+            const city =
+              allCityByCode[targetCode];
+            return city
+              ? [
+                  {
+                    city,
+                    distance:
+                      connection.distanceKm,
+                    owner:
+                      cityOwners[city.code] ??
+                      null,
+                  },
+                ]
+              : [];
+          })
+          .sort(
+            (a, b) =>
+              a.distance - b.distance
+          )
+      : [];
+
   const selectedCapital = selectedCountryCities.find(
     (city) => city.isCapital
   );
@@ -6193,6 +6268,130 @@ export default function App() {
                   {transportCapacityIssue && (
                     <div className="transport-warning">
                       {transportCapacityIssue}
+                    </div>
+                  )}
+                </div>
+
+                <div className="connection-targets">
+                  <div className="connection-targets-title">
+                    BAĞLI HEDEFLER
+                  </div>
+
+                  {selectedLandTargets.length > 0 && (
+                    <div className="connection-target-group">
+                      <span>KARA HATLARI</span>
+                      {selectedLandTargets.map(
+                        (target) => (
+                          <button
+                            key={
+                              "land-" +
+                              target.city.code
+                            }
+                            className={
+                              "connection-target " +
+                              (target.owner ===
+                              currentPlayer
+                                ? "friendly"
+                                : target.owner
+                                  ? "enemy"
+                                  : "neutral")
+                            }
+                            onClick={() => {
+                              const [x, y] =
+                                project([
+                                  target.city.lon,
+                                  target.city.lat,
+                                ]);
+                              setMapCenter({
+                                x: wrapWorldX(x),
+                                y,
+                              });
+                              setNotice(
+                                `${target.city.name} · Kara hattı ${Math.round(
+                                  target.distance
+                                ).toLocaleString(
+                                  "tr-TR"
+                                )} km · ${target.owner ?? "Tarafsız"}`
+                              );
+                            }}
+                          >
+                            <b>
+                              {target.city.name}
+                            </b>
+                            <span>
+                              {Math.round(
+                                target.distance
+                              ).toLocaleString(
+                                "tr-TR"
+                              )}{" "}
+                              km
+                            </span>
+                            <small>
+                              {target.owner ??
+                                "Tarafsız"}
+                            </small>
+                          </button>
+                        )
+                      )}
+                    </div>
+                  )}
+
+                  {selectedSeaTargets.length > 0 && (
+                    <div className="connection-target-group sea">
+                      <span>DENİZ HATLARI</span>
+                      {selectedSeaTargets.map(
+                        (target) => (
+                          <button
+                            key={
+                              "sea-" +
+                              target.city.code
+                            }
+                            className={
+                              "connection-target sea " +
+                              (target.owner ===
+                              currentPlayer
+                                ? "friendly"
+                                : target.owner
+                                  ? "enemy"
+                                  : "neutral")
+                            }
+                            onClick={() => {
+                              const [x, y] =
+                                project([
+                                  target.city.lon,
+                                  target.city.lat,
+                                ]);
+                              setMapCenter({
+                                x: wrapWorldX(x),
+                                y,
+                              });
+                              setNotice(
+                                `${target.city.name} · Deniz hattı ${Math.round(
+                                  target.distance
+                                ).toLocaleString(
+                                  "tr-TR"
+                                )} km · ${target.owner ?? "Tarafsız"}`
+                              );
+                            }}
+                          >
+                            <b>
+                              {target.city.name}
+                            </b>
+                            <span>
+                              {Math.round(
+                                target.distance
+                              ).toLocaleString(
+                                "tr-TR"
+                              )}{" "}
+                              km
+                            </span>
+                            <small>
+                              {target.owner ??
+                                "Tarafsız"}
+                            </small>
+                          </button>
+                        )
+                      )}
                     </div>
                   )}
                 </div>
