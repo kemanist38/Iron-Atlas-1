@@ -2804,27 +2804,207 @@ export default function App() {
       (order) => !order.targetCityCode
     );
 
+    const fieldArrivalGroups = new Map<
+      string,
+      {
+        player: string;
+        x: number;
+        y: number;
+        units: Record<string, number>;
+      }
+    >();
+
     fieldOrders.forEach((order) => {
+      const positionKey =
+        Math.round(order.targetX * 10) +
+        ":" +
+        Math.round(order.targetY * 10);
+      const key =
+        order.player + "::" + positionKey;
+      const group = fieldArrivalGroups.get(key) ?? {
+        player: order.player,
+        x: order.targetX,
+        y: order.targetY,
+        units: {},
+      };
+      group.units[order.unitId] =
+        (group.units[order.unitId] ?? 0) +
+        order.quantity;
+      fieldArrivalGroups.set(key, group);
+    });
+
+    fieldArrivalGroups.forEach((group) => {
       const existingArmy = nextFieldArmies.find(
         (army) =>
-          army.player === order.player &&
-          Math.abs(army.x - order.targetX) < 1 &&
-          Math.abs(army.y - order.targetY) < 1
+          army.player === group.player &&
+          Math.abs(army.x - group.x) < 1 &&
+          Math.abs(army.y - group.y) < 1
       );
 
       if (existingArmy) {
-        existingArmy.units[order.unitId] =
-          (existingArmy.units[order.unitId] ?? 0) +
-          order.quantity;
+        existingArmy.units = mergeArmy(
+          existingArmy.units,
+          group.units
+        );
       } else {
         nextFieldArmies.push({
           id: orderIdRef.current++,
-          player: order.player,
-          x: order.targetX,
-          y: order.targetY,
-          units: { [order.unitId]: order.quantity },
+          player: group.player,
+          x: group.x,
+          y: group.y,
+          units: { ...group.units },
         });
       }
+    });
+
+    const fieldConflictPoints = new Map<
+      string,
+      { x: number; y: number }
+    >();
+
+    fieldOrders.forEach((order) => {
+      const key =
+        Math.round(order.targetX * 10) +
+        ":" +
+        Math.round(order.targetY * 10);
+      fieldConflictPoints.set(key, {
+        x: order.targetX,
+        y: order.targetY,
+      });
+    });
+
+    fieldConflictPoints.forEach(({ x, y }) => {
+      const armiesAtPoint = nextFieldArmies.filter(
+        (army) =>
+          Math.abs(army.x - x) < 1 &&
+          Math.abs(army.y - y) < 1
+      );
+
+      const playersAtPoint = Array.from(
+        new Set(
+          armiesAtPoint.map((army) => army.player)
+        )
+      );
+
+      if (playersAtPoint.length <= 1) return;
+
+      const contenders = playersAtPoint
+        .map((player) => {
+          const units = armiesAtPoint
+            .filter(
+              (army) => army.player === player
+            )
+            .reduce(
+              (merged, army) =>
+                mergeArmy(merged, army.units),
+              {} as Record<string, number>
+            );
+
+          const power =
+            unitAttackPower(units) +
+            unitDefensePower(units) * 0.65;
+
+          return {
+            player,
+            units,
+            power,
+          };
+        })
+        .sort((a, b) => b.power - a.power);
+
+      let winner = contenders[0];
+
+      for (
+        let index = 1;
+        index < contenders.length;
+        index += 1
+      ) {
+        const challenger = contenders[index];
+
+        if (winner.power >= challenger.power) {
+          const lossRatio = Math.min(
+            0.82,
+            challenger.power /
+              Math.max(1, winner.power * 1.55)
+          );
+          winner = {
+            ...winner,
+            units: scaleArmy(
+              winner.units,
+              1 - lossRatio
+            ),
+          };
+          winner.power =
+            unitAttackPower(winner.units) +
+            unitDefensePower(winner.units) *
+              0.65;
+        } else {
+          const lossRatio = Math.min(
+            0.82,
+            winner.power /
+              Math.max(
+                1,
+                challenger.power * 1.55
+              )
+          );
+          const challengerUnits = scaleArmy(
+            challenger.units,
+            1 - lossRatio
+          );
+          winner = {
+            ...challenger,
+            units: challengerUnits,
+            power:
+              unitAttackPower(challengerUnits) +
+              unitDefensePower(challengerUnits) *
+                0.65,
+          };
+        }
+      }
+
+      const losingArmyIds = new Set(
+        armiesAtPoint.map((army) => army.id)
+      );
+      for (
+        let index = nextFieldArmies.length - 1;
+        index >= 0;
+        index -= 1
+      ) {
+        if (
+          losingArmyIds.has(nextFieldArmies[index].id)
+        ) {
+          nextFieldArmies.splice(index, 1);
+        }
+      }
+
+      const survivorCount = Object.values(
+        winner.units
+      ).reduce(
+        (sum, quantity) => sum + quantity,
+        0
+      );
+
+      if (survivorCount > 0) {
+        nextFieldArmies.push({
+          id: orderIdRef.current++,
+          player: winner.player,
+          x,
+          y,
+          units: winner.units,
+        });
+      }
+
+      const hasNaval = contenders.some(
+        (contender) =>
+          Object.keys(contender.units).some(
+            (unitId) =>
+              UNIT_BY_ID[unitId]?.domain === "naval"
+          )
+      );
+
+      combatLog.push(
+        `${hasNaval ? "Deniz savaşı" : "Saha savaşı"}: ${winner.player} kazandı · ${survivorCount} birlik kaldı.`
+      );
     });
 
     type CityAttackGroup = {
