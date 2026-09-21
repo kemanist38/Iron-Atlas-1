@@ -1750,21 +1750,10 @@ export default function App() {
     const targetX = wrapWorldX(targetXRaw);
     const [targetLon, targetLat] = unproject([targetX, targetY]);
     const targetPoint = { lon: targetLon, lat: targetLat };
-    const distanceKm = haversinePoints(
+    let distanceKm = haversinePoints(
       sourcePoint,
       targetPoint
     );
-
-    if (distanceKm > activeMoveRangeKm) {
-      setNotice(
-        `Hareket reddedildi: hedef ${Math.round(
-          distanceKm
-        ).toLocaleString("tr-TR")} km uzakta. Birliğin menzili ${Math.round(
-          activeMoveRangeKm
-        ).toLocaleString("tr-TR")} km.`
-      );
-      return;
-    }
 
     const nearestCity = allCities.reduce<{
       city: CityNode | null;
@@ -1783,6 +1772,67 @@ export default function App() {
       nearestCity.city && nearestCity.distance <= 120
         ? nearestCity.city
         : null;
+
+    const sourceAnchorCity =
+      sourceCity ??
+      (sourceArmy
+        ? allCities
+            .map((city) => ({
+              city,
+              distance: haversinePoints(
+                city,
+                sourcePoint
+              ),
+            }))
+            .sort(
+              (a, b) => a.distance - b.distance
+            )
+            .find(({ distance }) => distance <= 140)
+            ?.city
+        : undefined);
+
+    if (moveSurface === "land") {
+      if (!targetCity) {
+        setNotice(
+          "Kara birlikleri artık serbest araziye bırakılamaz. Haritadaki bağlı şehir noktalarından birini seç."
+        );
+        return;
+      }
+
+      if (!sourceAnchorCity) {
+        setNotice(
+          "Bu kara birliği bir bağlantı düğümünde değil. Önce en yakın şehre dönmesi gerekiyor."
+        );
+        return;
+      }
+
+      const connection = connectionBetween(
+        landConnections,
+        sourceAnchorCity.code,
+        targetCity.code
+      );
+
+      if (!connection) {
+        setNotice(
+          `${sourceAnchorCity.name} ile ${targetCity.name} arasında doğrudan kara bağlantısı yok. Önce aradaki bağlantılı şehri ele geçirmen gerekiyor.`
+        );
+        return;
+      }
+
+      distanceKm = connection.distanceKm;
+    }
+
+    if (distanceKm > activeMoveRangeKm) {
+      setNotice(
+        `Hareket reddedildi: hedef ${Math.round(
+          distanceKm
+        ).toLocaleString("tr-TR")} km uzakta. Birliğin menzili ${Math.round(
+          activeMoveRangeKm
+        ).toLocaleString("tr-TR")} km.`
+      );
+      return;
+    }
+
     const targetIsPort =
       Boolean(targetCity) &&
       hasPortCode(targetCity!.code);
@@ -1899,6 +1949,17 @@ export default function App() {
       return;
     }
 
+    let orderTargetX = targetX;
+    let orderTargetY = targetY;
+    if (moveSurface === "land" && targetCity) {
+      const projectedTarget = project([
+        targetCity.lon,
+        targetCity.lat,
+      ]);
+      orderTargetX = projectedTarget[0];
+      orderTargetY = projectedTarget[1];
+    }
+
     const targetOwner = targetCity
       ? cityOwners[targetCity.code] ?? null
       : null;
@@ -1943,8 +2004,8 @@ export default function App() {
           fromArmyId: sourceArmy?.id ?? null,
           sourceX: sourcePoint.x,
           sourceY: sourcePoint.y,
-          targetX,
-          targetY,
+          targetX: orderTargetX,
+          targetY: orderTargetY,
           targetCityCode: targetCity?.code ?? null,
           unitId,
           quantity,
