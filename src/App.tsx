@@ -34,6 +34,13 @@ import {
   type CityStructureDefinition,
   type CityStructureLevels,
 } from "./cityStructures";
+import {
+  buildLandConnections,
+  connectedCityCodes,
+  connectionBetween,
+  connectionRelation,
+  type LandConnection,
+} from "./connectionRules";
 
 type Screen = "lobby" | "setup" | "homeland" | "game";
 type Resources = { gold: number; steel: number; oil: number };
@@ -929,6 +936,51 @@ export default function App() {
     allCities.filter(
       (city) => city.countryCode === code
     );
+
+  const landConnections = useMemo<LandConnection[]>(
+    () =>
+      buildLandConnections(
+        allCities,
+        haversinePoints,
+        (a, b) =>
+          routeStaysOnSurface(
+            world,
+            a,
+            b,
+            "land",
+            false,
+            false
+          )
+      ),
+    [allCities, world]
+  );
+
+  const landConnectionsByCity = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    allCities.forEach((city) => {
+      map.set(
+        city.code,
+        connectedCityCodes(
+          landConnections,
+          city.code
+        )
+      );
+    });
+    return map;
+  }, [allCities, landConnections]);
+
+  const hasDirectLandConnection = (
+    fromCode: string,
+    toCode: string
+  ) =>
+    Boolean(
+      connectionBetween(
+        landConnections,
+        fromCode,
+        toCode
+      )
+    );
+
   const hasPortCode = (cityCode: string) =>
     cityHasPort(cityCode) ||
     generatedWorldData.portCodes.has(cityCode);
