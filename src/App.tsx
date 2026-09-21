@@ -4077,7 +4077,7 @@ export default function App() {
                               onPointerDown={(event) =>
                                 event.stopPropagation()
                               }
-                              onClick={(event) =>
+                              onPointerUp={(event) =>
                                 handleCityUnitStackClick(
                                   event,
                                   city,
