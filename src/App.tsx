@@ -37,9 +37,12 @@ import {
 } from "./cityStructures";
 import {
   buildLandConnections,
+  buildSeaConnections,
   connectionBetween,
   connectionRelation,
+  seaConnectionBetween,
   type LandConnection,
+  type SeaConnection,
 } from "./connectionRules";
 
 type Screen = "lobby" | "setup" | "homeland" | "game";
@@ -1160,6 +1163,28 @@ export default function App() {
   const hasPortCode = (cityCode: string) =>
     cityHasPort(cityCode) ||
     generatedWorldData.portCodes.has(cityCode);
+
+  const seaConnections = useMemo<SeaConnection[]>(
+    () =>
+      buildSeaConnections(
+        allCities,
+        (cityCode) =>
+          cityHasPort(cityCode) ||
+          generatedWorldData.portCodes.has(cityCode),
+        haversinePoints,
+        (a, b) =>
+          routeStaysOnSurface(
+            world,
+            a,
+            b,
+            "naval",
+            true,
+            true
+          )
+      ),
+    [allCities, world, generatedWorldData.portCodes]
+  );
+
   const structuresForCity = (cityCode: string) => ({
     ...EMPTY_CITY_STRUCTURES,
     ...(cityStructures[cityCode] ?? {}),
@@ -1379,6 +1404,13 @@ export default function App() {
             )
             .find(({ distance }) => distance <= 140)
             ?.city.code ?? null
+      : null;
+
+  const activeSeaSourceCityCode =
+    (moveSurface === "naval" ||
+      moveSurface === "naval_transport") &&
+    activeMoveSource?.sourceKind === "city"
+      ? String(activeMoveSource.id)
       : null;
 
   const previewMoveSource =
