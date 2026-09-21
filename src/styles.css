@@ -1689,3 +1689,72 @@ button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
+
+
+.commander-status {
+  position: absolute;
+  top: 214px;
+  right: 14px;
+  z-index: 23;
+  width: 220px;
+  padding: 10px;
+  background: rgba(6, 14, 20, 0.9);
+}
+
+.commander-status-title {
+  margin-bottom: 6px;
+  color: #d0c44b;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.commander-status-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid rgba(74, 99, 111, 0.22);
+}
+
+.commander-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.12);
+}
+
+.commander-status-row > div:nth-child(2) b,
+.commander-stats b {
+  display: block;
+  color: #e3e7e3;
+  font-size: 8.5px;
+}
+
+.commander-status-row > div:nth-child(2) span,
+.commander-stats span,
+.commander-stats small {
+  display: block;
+  margin-top: 2px;
+  color: #718893;
+  font-size: 7px;
+}
+
+.commander-stats {
+  text-align: right;
+}
+
+.commander-stats .capital-safe {
+  color: #72c99c;
+}
+
+.commander-stats .capital-danger {
+  color: #ef776a;
+}
+
+@media (max-width: 1050px) {
+  .commander-status {
+    display: none;
+  }
+}
